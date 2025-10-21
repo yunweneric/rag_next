@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Send, User, Bot, Scale } from 'lucide-react'
+import { MarkdownMessage } from '@/lib/features/chat/presentation/components/markdown-message'
 
 interface Message {
   id: string
@@ -149,7 +150,11 @@ export default function ChatInterface() {
               <Card className={`${message.role === 'user' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
                 <CardContent className="p-3">
                   <div className="space-y-2">
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {message.role === 'assistant' ? (
+                      <MarkdownMessage content={message.content} />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    )}
                     
                     {message.sources && message.sources.length > 0 && (
                       <div className="space-y-1">

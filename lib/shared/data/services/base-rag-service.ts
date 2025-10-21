@@ -247,12 +247,25 @@ export abstract class BaseRAGService {
       // Check if the question is domain-related
       const isDomainRelated = await this.isDomainRelatedQuestion(question, llm);
 
+      console.log('isDomainRelated', isDomainRelated);
+      
       if (!isDomainRelated) {
-        // Handle general conversation
+        // Handle general conversation naturally
         const generalAnswer = await llm.invoke([
           {
             role: "user",
-            content: `You are a helpful assistant. Answer this question naturally: ${question}`,
+            content: `You are a helpful Swiss legal assistant. Respond naturally to this: ${question}. If it's a greeting, introduce yourself as a Swiss legal assistant and explain how you can help with legal questions.
+
+IMPORTANT: Always format your response in markdown. Use proper markdown syntax for:
+- Headers (# ## ###)
+- Bold text (**bold**)
+- Italic text (*italic*)
+- Lists (- item or 1. item)
+- Code blocks (\`\`\`language)
+- Links ([text](url))
+- Blockquotes (> quote)
+
+Format your response in markdown:`,
           },
         ]);
 
@@ -283,7 +296,21 @@ export abstract class BaseRAGService {
       // Get domain-specific prompt
       const prompt = this.getDomainPrompt(context, question);
 
-      const answer = await llm.invoke([{ role: "user", content: prompt }]);
+      // Add markdown formatting instruction to ensure consistent output
+      const markdownPrompt = `${prompt}
+
+CRITICAL: Format your entire response in markdown. Use proper markdown syntax including:
+- Headers (# ## ###)
+- Bold text (**text**)
+- Italic text (*text*)
+- Lists (- item or 1. item)
+- Code blocks (\`\`\`language)
+- Links ([text](url))
+- Blockquotes (> quote)
+
+Your response must be in markdown format.`;
+
+      const answer = await llm.invoke([{ role: "user", content: markdownPrompt }]);
       const finalAnswer = answer.content;
 
       // Format sources with better relevance
@@ -317,24 +344,54 @@ export abstract class BaseRAGService {
     question: string,
     llm: ChatOllama
   ): Promise<boolean> {
-    const lowerQuestion = question.toLowerCase();
+    const lowerQuestion = question.toLowerCase().trim();
+    
+    // First check for simple greetings and non-legal questions
+    const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 'hallo', 'guten tag', 'bonjour', 'ciao'];
+    const isGreeting = greetings.some(greeting => lowerQuestion.includes(greeting));
+    
+    if (isGreeting && lowerQuestion.length < 50) {
+      return false; // Don't use RAG for simple greetings
+    }
+    
+    // Check for obvious non-legal questions
+    const nonLegalPatterns = [
+      'how are you', 'what time', 'weather', 'news', 'sports', 'music', 'movie', 'food', 'travel', 'shopping',
+      'wie geht es', 'wie spät', 'wetter', 'nachrichten', 'sport', 'musik', 'film', 'essen', 'reisen', 'einkaufen'
+    ];
+    
+    const isNonLegal = nonLegalPatterns.some(pattern => lowerQuestion.includes(pattern));
+    if (isNonLegal) {
+      return false;
+    }
+    
+    // Check for domain keywords
     const hasDomainKeywords = this.domainKeywords.some((keyword) =>
-      lowerQuestion.includes(keyword)
+      lowerQuestion.includes(keyword.toLowerCase())
     );
 
     if (hasDomainKeywords) return true;
 
-    // Use LLM to determine if it's domain-related
+    // Use LLM to determine if it's domain-related for ambiguous cases
     try {
-      const classificationPrompt = `Determine if this question is related to ${this.domainName}. Answer only "YES" or "NO".
+      const classificationPrompt = `Determine if this question is specifically asking about ${this.domainName} legal matters. Consider:
+- Simple greetings (hi, hello) = NO
+- General questions not about law = NO  
+- Questions about Swiss law, legal procedures, rights, obligations = YES
+- Questions about finding lawyers = YES
 
-Question: ${question}`;
+Answer only "YES" or "NO".
+
+Question: "${question}"`;
 
       const response = await llm.invoke([
         { role: "user", content: classificationPrompt },
       ]);
-      return response.content.trim().toUpperCase().includes("YES");
-    } catch {
+      const isRelated = response.content.trim().toUpperCase().includes("YES");
+      console.log(`Question: "${question}" -> Domain related: ${isRelated}`);
+      return isRelated;
+    } catch (error) {
+      console.error("Error in domain classification:", error);
       // Fallback to keyword matching
       return hasDomainKeywords;
     }

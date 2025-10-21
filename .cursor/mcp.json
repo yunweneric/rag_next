@@ -6,6 +6,9 @@
         "shadcn@latest",
         "mcp"
       ]
+    },
+    "docs-langchain": {
+      "url": "https://docs.langchain.com/mcp"
     }
     
   }

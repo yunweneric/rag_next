@@ -36,6 +36,20 @@ export function useAuth(): UseAuthReturn {
     const initializeAuth = async () => {
       try {
         setLoading(true)
+        
+        // First try to get user from localStorage session
+        if (typeof window !== 'undefined') {
+          const { sessionManager } = await import('@/lib/shared/utils/session-manager')
+          const sessionUser = sessionManager.getCurrentUser()
+          
+          if (sessionUser && sessionManager.isSessionValid()) {
+            setUser(sessionUser)
+            setLoading(false)
+            return
+          }
+        }
+        
+        // Fallback to Supabase auth
         const currentUser = await authService.getCurrentUser()
         setUser(currentUser)
       } catch (err) {
@@ -59,8 +73,20 @@ export function useAuth(): UseAuthReturn {
         if (event === 'SIGNED_IN' && session?.user) {
           const userProfile = await authService.getUserProfile(session.user.id)
           setUser(userProfile)
+          
+          // Store session in localStorage
+          if (userProfile && typeof window !== 'undefined') {
+            const { sessionManager } = await import('@/lib/shared/utils/session-manager')
+            sessionManager.setSession(userProfile, 24)
+          }
         } else if (event === 'SIGNED_OUT') {
           setUser(null)
+          
+          // Clear session from localStorage
+          if (typeof window !== 'undefined') {
+            const { sessionManager } = await import('@/lib/shared/utils/session-manager')
+            sessionManager.clearSession()
+          }
         }
       }
     )
@@ -122,19 +148,29 @@ export function useAuth(): UseAuthReturn {
       setLoading(true)
       setError(null)
       
+      // Clear session from localStorage first
+      if (typeof window !== 'undefined') {
+        const { sessionManager } = await import('@/lib/shared/utils/session-manager')
+        sessionManager.clearSession()
+      }
+      
       const response = await authService.logout()
       
+      // Always clear user state regardless of response
+      setUser(null)
+      
       if (response.success) {
-        setUser(null)
         return true
       } else {
-        setError(response.error?.message || 'Logout failed')
-        return false
+        // Even if logout fails, we've cleared local session
+        console.warn('Supabase logout failed, but local session cleared:', response.error?.message)
+        return true
       }
     } catch (err) {
       console.error('Logout error:', err)
-      setError('An unexpected error occurred during logout')
-      return false
+      // Clear user state even on error
+      setUser(null)
+      return true // Consider successful since we cleared local session
     } finally {
       setLoading(false)
     }

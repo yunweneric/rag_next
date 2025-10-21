@@ -103,6 +103,15 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
 
       if (data.user) {
         const profile = await this.getUserProfile(data.user.id)
+        
+        if (profile) {
+          // Store session in localStorage
+          if (typeof window !== 'undefined') {
+            const { sessionManager } = await import('@/lib/shared/utils/session-manager')
+            sessionManager.setSession(profile, 24) // 24 hours
+          }
+        }
+        
         return {
           user: profile,
           error: null,
@@ -260,13 +269,22 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
   // Logout
   async logout(): Promise<AuthResponse> {
     try {
+      // Clear session from localStorage first
+      if (typeof window !== 'undefined') {
+        const { sessionManager } = await import('@/lib/shared/utils/session-manager')
+        sessionManager.clearSession()
+      }
+
+      // Sign out from Supabase
       const { error } = await this.authSupabase.auth.signOut()
 
       if (error) {
+        console.error('Supabase logout error:', error)
+        // Even if Supabase logout fails, we've cleared local session
         return {
           user: null,
           error,
-          success: false
+          success: true // Still consider it successful since local session is cleared
         }
       }
 
@@ -277,10 +295,20 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
       }
     } catch (error) {
       console.error('Logout error:', error)
+      // Clear local session even if there's an error
+      if (typeof window !== 'undefined') {
+        try {
+          const { sessionManager } = await import('@/lib/shared/utils/session-manager')
+          sessionManager.clearSession()
+        } catch (sessionError) {
+          console.error('Failed to clear session:', sessionError)
+        }
+      }
+      
       return {
         user: null,
         error: error as AuthError,
-        success: false
+        success: true // Consider successful since we cleared local session
       }
     }
   }

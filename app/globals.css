@@ -120,3 +120,74 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom markdown styling for chat messages */
+.prose {
+  --tw-prose-body: inherit;
+  --tw-prose-headings: inherit;
+  --tw-prose-lead: inherit;
+  --tw-prose-links: #3b82f6;
+  --tw-prose-bold: inherit;
+  --tw-prose-counters: inherit;
+  --tw-prose-bullets: inherit;
+  --tw-prose-hr: inherit;
+  --tw-prose-quotes: inherit;
+  --tw-prose-quote-borders: inherit;
+  --tw-prose-captions: inherit;
+  --tw-prose-code: inherit;
+  --tw-prose-pre-code: inherit;
+  --tw-prose-pre-bg: inherit;
+  --tw-prose-th-borders: inherit;
+  --tw-prose-td-borders: inherit;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  @apply text-foreground font-semibold;
+}
+
+.prose p {
+  @apply text-foreground;
+}
+
+.prose code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm;
+}
+
+.prose pre {
+  @apply bg-muted border rounded-lg;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-primary/20 pl-4 italic;
+}
+
+.prose ul,
+.prose ol {
+  @apply text-foreground;
+}
+
+.prose li {
+  @apply text-foreground;
+}
+
+.prose a {
+  @apply text-primary hover:text-primary/80 underline;
+}
+
+.prose table {
+  @apply border border-border rounded-lg;
+}
+
+.prose th,
+.prose td {
+  @apply border border-border px-3 py-2;
+}
+
+.prose th {
+  @apply bg-muted font-semibold;
+}

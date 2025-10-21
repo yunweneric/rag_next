@@ -685,12 +685,42 @@ export class SwissLegalService extends BaseRAGService {
   }
 
   protected getNoInformationMessage(): string {
-    return `I'd be happy to help you with your legal question! To provide you with the most accurate information, could you please provide more details about your specific situation? For example:
-- What specific area of Swiss law are you asking about?
-- What is your particular situation or concern?
-- Are you looking for information about a specific legal procedure?
+    return `# I'd be happy to help you! 🤝
 
-Once I understand your question better, I can provide more targeted legal information. I can also recommend qualified Swiss lawyers who specialize in your area of concern.`
+I'd be happy to help you with your legal question! To provide you with the most accurate information, could you please provide more details about your specific situation?
+
+## Please provide more details:
+
+- **Area of Law**: What specific area of Swiss law are you asking about?
+- **Situation**: What is your particular situation or concern?
+- **Procedure**: Are you looking for information about a specific legal procedure?
+
+*Once I understand your question better, I can provide more targeted legal information. I can also recommend qualified Swiss lawyers who specialize in your area of concern.*`
+  }
+
+  // Override to provide better greeting responses
+  async handleGreeting(): Promise<string> {
+    return `# Hello! 👋
+
+I'm your **Swiss Legal Assistant** and I'm here to help you with questions about Swiss law.
+
+## How I can help you:
+
+- **Legal Information**: Answer questions about Swiss legal matters
+- **Procedures**: Provide information about legal procedures and requirements  
+- **Rights & Obligations**: Explain your legal rights and obligations
+- **Lawyer Connections**: Connect you with qualified Swiss lawyers when needed
+
+## What I can assist with:
+
+- Family law matters
+- Employment law questions
+- Property and real estate law
+- Contract law
+- Immigration law
+- And much more!
+
+*What legal question can I help you with today?*`
   }
 
   protected buildContext(docs: any[]): string {
@@ -726,12 +756,21 @@ IMPORTANT INSTRUCTIONS:
    - The legal question clearly requires professional legal assistance
    - Do NOT automatically recommend lawyers for every response
 
+CRITICAL FORMATTING REQUIREMENT:
+- ALWAYS format your response in markdown
+- Use proper markdown syntax for headers, lists, emphasis, etc.
+- Structure your response with clear headings and bullet points
+- Use **bold** for important terms and *italic* for emphasis
+- Use numbered lists (1. 2. 3.) for procedures
+- Use bullet points (- item) for features or options
+- Use code blocks for legal codes or specific references
+
 CONTEXT (Swiss Legal Documents):
 ${context}
 
 QUESTION: ${question}
 
-Please provide a comprehensive answer based on your knowledge of Swiss law. Only offer to recommend lawyers when appropriate (see instruction 8 above).
+Please provide a comprehensive answer based on your knowledge of Swiss law. Format your response in markdown with proper structure, headings, and formatting. Only offer to recommend lawyers when appropriate (see instruction 8 above).
 
 If you recommend lawyers, provide them in this JSON format:
 {

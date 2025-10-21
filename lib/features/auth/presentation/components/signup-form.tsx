@@ -1,4 +1,5 @@
 'use client'
+
 import { cn } from "@/lib/shared/utils/cn"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,17 +23,17 @@ export function SignupForm({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
+  const [fullName, setFullName] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearError()
-    
-    
+
     const success = await signup({ 
       email, 
       password, 
       username, 
-      full_name: username 
+      full_name: fullName 
     })
     if (success) {
       router.push('/verify-otp')
@@ -48,59 +49,70 @@ export function SignupForm({
             Enter your details below to create your account
           </p>
         </div>
-        
+
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">
             <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
-        
+
+        <Field>
+          <FieldLabel htmlFor="fullName">Full Name</FieldLabel>
+          <Input
+            id="fullName"
+            type="text"
+            placeholder="John Doe"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            disabled={loading}
+          />
+        </Field>
+
         <Field>
           <FieldLabel htmlFor="username">Username</FieldLabel>
-          <Input 
-            id="username" 
-            type="text" 
-            placeholder="johndoe" 
+          <Input
+            id="username"
+            type="text"
+            placeholder="johndoe"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            required 
+            required
             disabled={loading}
           />
         </Field>
-        
+
         <Field>
           <FieldLabel htmlFor="email">Email</FieldLabel>
-          <Input 
-            id="email" 
-            type="email" 
-            placeholder="m@example.com" 
+          <Input
+            id="email"
+            type="email"
+            placeholder="m@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            required 
+            required
             disabled={loading}
           />
         </Field>
-        
+
         <Field>
           <FieldLabel htmlFor="password">Password</FieldLabel>
-          <Input 
-            id="password" 
-            type="password" 
-            placeholder="Enter your password"
+          <Input
+            id="password"
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            required 
+            required
             disabled={loading}
           />
         </Field>
-        
-        
+
         <Field>
           <Button type="submit" disabled={loading}>
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? 'Creating account...' : 'Create account'}
           </Button>
         </Field>
-        
+
         <FieldSeparator></FieldSeparator>
         
         <Field>

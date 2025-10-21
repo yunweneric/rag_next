@@ -5,9 +5,21 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Plus, MessageSquare, Trash2, Calendar, LogOut, User } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Plus, MessageSquare, Trash2, Calendar, LogOut, User, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/shared/utils/cn'
 import { useAuth } from '@/lib/features/auth/hooks/use-auth'
+import { useRouter } from 'next/navigation'
 
 interface Conversation {
   id: string
@@ -31,7 +43,12 @@ export function ConversationSidebar({
 }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null)
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null)
   const { user, logout } = useAuth()
+  const router = useRouter()
 
   useEffect(() => {
     loadConversations()
@@ -52,21 +69,33 @@ export function ConversationSidebar({
     }
   }
 
-  const deleteConversation = async (conversationId: string) => {
+  const handleDeleteClick = (conversationId: string) => {
+    setConversationToDelete(conversationId)
+    setShowDeleteDialog(true)
+  }
+
+  const confirmDeleteConversation = async () => {
+    if (!conversationToDelete) return
+    
     try {
-      const response = await fetch(`/api/conversations/${conversationId}`, {
+      setDeletingConversationId(conversationToDelete)
+      const response = await fetch(`/api/conversations/${conversationToDelete}`, {
         method: 'DELETE',
       })
       
       if (response.ok) {
-        setConversations(prev => prev.filter(conv => conv.id !== conversationId))
+        setConversations(prev => prev.filter(conv => conv.id !== conversationToDelete))
         // If we're deleting the current conversation, switch to new conversation
-        if (conversationId === currentConversationId) {
+        if (conversationToDelete === currentConversationId) {
           onConversationSelect(null)
         }
       }
     } catch (error) {
       console.error('Error deleting conversation:', error)
+    } finally {
+      setDeletingConversationId(null)
+      setShowDeleteDialog(false)
+      setConversationToDelete(null)
     }
   }
 
@@ -82,9 +111,22 @@ export function ConversationSidebar({
     return date.toLocaleDateString()
   }
 
-  const handleLogout = async () => {
-    await logout()
-    // Redirect will be handled by the auth system
+  const handleLogoutClick = () => {
+    setShowLogoutDialog(true)
+  }
+
+  const confirmLogout = async () => {
+    try {
+      await logout()
+      // Redirect to login page after successful logout
+      router.push('/login')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Still redirect to login page even if logout fails
+      router.push('/login')
+    } finally {
+      setShowLogoutDialog(false)
+    }
   }
 
   return (
@@ -145,10 +187,15 @@ export function ConversationSidebar({
                   className="h-6 w-6 p-0 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={(e) => {
                     e.stopPropagation()
-                    deleteConversation(conversation.id)
+                    handleDeleteClick(conversation.id)
                   }}
+                  disabled={deletingConversationId === conversation.id}
                 >
-                  <Trash2 className="h-3 w-3" />
+                  {deletingConversationId === conversation.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3 w-3" />
+                  )}
                 </Button>
               </div>
             ))}
@@ -177,13 +224,49 @@ export function ConversationSidebar({
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleLogout}
+          onClick={handleLogoutClick}
           className="w-full justify-start gap-2 text-gray-600 hover:text-red-600"
         >
           <LogOut className="h-4 w-4" />
           Logout
         </Button>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to logout? You will need to sign in again to access your conversations.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLogout}>
+              Logout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Conversation Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this conversation? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteConversation}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
