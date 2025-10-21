@@ -47,8 +47,10 @@ export function ConversationSidebar({
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null)
+  
   const { user, logout } = useAuth()
   const router = useRouter()
+  
 
   useEffect(() => {
     loadConversations()
@@ -99,16 +101,31 @@ export function ConversationSidebar({
     }
   }
 
+  
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays === 1) return 'Today'
-    if (diffDays === 2) return 'Yesterday'
-    if (diffDays <= 7) return `${diffDays - 1} days ago`
-    return date.toLocaleDateString()
+
+    const isSameDay =
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate()
+
+    const yesterday = new Date(now)
+    yesterday.setDate(now.getDate() - 1)
+    const isYesterday =
+      date.getFullYear() === yesterday.getFullYear() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getDate() === yesterday.getDate()
+
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const timePart = `${hours}:${minutes}H`
+
+    if (isSameDay) return `Today, ${timePart}`
+    if (isYesterday) return `Yesterday, ${timePart}`
+    return `${date.toLocaleDateString()}, ${timePart}`
   }
 
   const handleLogoutClick = () => {
@@ -173,13 +190,13 @@ export function ConversationSidebar({
                 onClick={() => onConversationSelect(conversation.id)}
               >
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-gray-900 truncate">
-                    {conversation.title}
-                  </h3>
-                  <div className="flex items-center mt-1 text-xs text-gray-500">
-                    <Calendar className="h-3 w-3 mr-1" />
-                    {formatDate(conversation.updated_at)}
-                  </div>
+                    <h3 className="text-sm font-medium text-gray-900 truncate">
+                      {conversation.title}
+                    </h3>
+                    <div className="flex items-center mt-1 text-xs text-gray-500">
+                      <Calendar className="h-3 w-3 mr-1" />
+                      {formatDate(conversation.updated_at)}
+                    </div>
                 </div>
                 <Button
                   variant="ghost"
@@ -267,6 +284,8 @@ export function ConversationSidebar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      
     </div>
   )
 }

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/shared/utils/cn'
 import { LawyerRecommendations } from './lawyer-recommendations'
+import { Send, Trash } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -30,6 +31,8 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [typingMessage, setTypingMessage] = useState<Message | null>(null)
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
+  const [conversationTitle, setConversationTitle] = useState<string>('Chat')
+  const [conversationUpdatedAt, setConversationUpdatedAt] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -56,6 +59,29 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
         onComplete?.()
       }
     }, 20) // Adjust speed as needed (lower = faster)
+  }
+
+  const formatHeaderDate = (date: Date) => {
+    const now = new Date()
+    const isSameDay =
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate()
+
+    const yesterday = new Date(now)
+    yesterday.setDate(now.getDate() - 1)
+    const isYesterday =
+      date.getFullYear() === yesterday.getFullYear() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getDate() === yesterday.getDate()
+
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const timePart = `${hours}:${minutes}H`
+
+    if (isSameDay) return `Today at ${timePart}`
+    if (isYesterday) return `Yesterday at ${timePart}`
+    return `${date.toLocaleDateString()} at ${timePart}`
   }
 
   useEffect(() => {
@@ -97,6 +123,31 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
       }
     }
   }, [propConversationId])
+
+  // Load conversation metadata (title, updated time) when conversationId changes
+  useEffect(() => {
+    const loadConversationMeta = async () => {
+      if (!conversationId) {
+        setConversationTitle('Chat')
+        setConversationUpdatedAt(null)
+        return
+      }
+      try {
+        const response = await fetch('/api/conversations')
+        if (response.ok) {
+          const data = await response.json()
+          const conv = (data.conversations || []).find((c: any) => c.id === conversationId)
+          if (conv) {
+            setConversationTitle(conv.title || 'Chat')
+            setConversationUpdatedAt(conv.updated_at || conv.created_at || null)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading conversation metadata:', error)
+      }
+    }
+    loadConversationMeta()
+  }, [conversationId])
 
   const loadMessages = async (convId: string) => {
     try {
@@ -170,6 +221,38 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <div className="border-b bg-white">
+        <div className="max-w-5xl mx-auto p-4 flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">{conversationTitle}</h2>
+            <p className="text-sm text-gray-500">Quick answers about Swiss law and procedures.</p>
+            <p className="text-xs text-gray-400 mt-1">{formatHeaderDate(conversationUpdatedAt ? new Date(conversationUpdatedAt) : new Date())}</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Delete conversation"
+            className="p-2 rounded-md hover:bg-gray-100 text-gray-600 disabled:opacity-50"
+            disabled={!conversationId}
+            onClick={async () => {
+              if (!conversationId) return
+              try {
+                const resp = await fetch(`/api/conversations/${conversationId}`, { method: 'DELETE' })
+                if (resp.ok) {
+                  setMessages([])
+                  setConversationId(undefined)
+                  setConversationTitle('Chat')
+                  setConversationUpdatedAt(null)
+                  onConversationChange?.(null)
+                }
+              } catch (error) {
+                console.error('Error deleting conversation:', error)
+              }
+            }}
+          >
+            <Trash className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         {loadingMessages ? (
           <div className="flex items-center justify-center h-full">
@@ -180,15 +263,8 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
         ) : messages.length === 0 && !loadingMessages ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <h1 className="text-2xl font-semibold text-gray-900 mb-2">
-                I can help you with legal information!
-              </h1>
-              <p className="text-gray-500 mb-4">
-                Ask me anything about Swiss legal matters. I can provide information about Swiss law, legal procedures, and help you understand your legal rights and obligations.
-              </p>
-              <p className="text-sm text-gray-400 mb-8">
-                If I don't understand your question, I'll ask for clarification. At the end of our conversation, I can recommend qualified Swiss lawyers who specialize in your area of concern.
-              </p>
+              <p className="text-gray-700 mb-2">Ask me about Swiss law and legal procedures.</p>
+              <p className="text-sm text-gray-500">I can also suggest relevant Swiss lawyers.</p>
             </div>
           </div>
         ) : (
@@ -279,8 +355,19 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
               type="submit" 
               disabled={loading || !input.trim()}
               className="h-12 px-6 rounded-lg"
+              aria-label="Send message"
             >
-              {loading ? "Sending..." : "Send"}
+              {loading ? (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send
+                </>
+              )}
             </Button>
           </form>
         </div>
