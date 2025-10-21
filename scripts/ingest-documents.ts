@@ -1,10 +1,7 @@
 import { SwissLegalService } from '../lib/features/chat/data/services/swiss-legal-service'
-import { readFileSync } from 'fs'
 import { join } from 'path'
-import { config } from 'dotenv'
 
-// Load environment variables
-config({ path: '.env.local' })
+// Environment variables should be provided by the shell or process manager
 
 async function ingestDocuments() {
   console.log('Starting document ingestion...')
