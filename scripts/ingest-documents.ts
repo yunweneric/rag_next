@@ -12,13 +12,12 @@ async function ingestDocuments() {
   // Debug environment variables
   console.log('Environment variables:')
   console.log('PINECONE_API_KEY:', process.env.PINECONE_API_KEY ? 'Set' : 'Not set')
-  console.log('OLLAMA_URL:', process.env.OLLAMA_URL || 'http://localhost:11434')
+  console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set')
 
   // Initialize the Swiss Legal Service
   const legalService = new SwissLegalService({
-    ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
-    llmModel: 'llama3.2',
-    embedModel: 'nomic-embed-text',
+    llmModel: process.env.OPENAI_LLM_MODEL || 'gpt-4o-mini',
+    embedModel: process.env.OPENAI_EMBED_MODEL || 'text-embedding-3-small',
     pineconeApiKey: process.env.PINECONE_API_KEY || '',
     indexName: 'swiss-legal',
     domainKeywords: [],

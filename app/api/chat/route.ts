@@ -21,11 +21,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    // Initialize Swiss Legal Service
+    // Initialize Swiss Legal Service (OpenAI)
     const legalService = new SwissLegalService({
-      ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
-      llmModel: 'llama3.2',
-      embedModel: 'nomic-embed-text',
+      llmModel: process.env.OPENAI_LLM_MODEL || 'gpt-4o-mini',
+      embedModel: process.env.OPENAI_EMBED_MODEL || 'text-embedding-3-small',
       pineconeApiKey: process.env.PINECONE_API_KEY || '',
       indexName: 'swiss-legal',
       domainKeywords: [],

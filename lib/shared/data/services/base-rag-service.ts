@@ -2,7 +2,7 @@ import { Pinecone } from "@pinecone-database/pinecone";
 import { PineconeStore } from "@langchain/pinecone";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
-import { Ollama } from "ollama";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 
 // Module-level singleton store
 let vectorStore: PineconeStore | null = null;
@@ -19,81 +19,34 @@ export interface RAGResponse {
   processingTime: number;
 }
 
-// Custom Ollama embeddings class for LangChain compatibility
-class OllamaEmbeddings {
-  private ollama: Ollama;
-  private model: string;
-
-  constructor(config: { model: string; baseUrl: string }) {
-    this.ollama = new Ollama({ host: config.baseUrl });
-    this.model = config.model;
+// Normalize LangChain/OpenAI message content to a string
+function resolveContentToString(content: any): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object") {
+          if (typeof part.text === "string") return part.text;
+          if (typeof part.content === "string") return part.content;
+          if (typeof part.type === "string") return part.type;
+        }
+        return "";
+      })
+      .join("");
   }
-
-  async embedQuery(text: string): Promise<number[]> {
-    const response = await this.ollama.embeddings({
-      model: this.model,
-      prompt: text,
-    });
-    return response.embedding;
+  if (content && typeof content === "object") {
+    if (typeof content.text === "string") return content.text;
+    if (typeof content.content === "string") return content.content;
   }
-
-  async embedDocuments(texts: string[]): Promise<number[][]> {
-    const embeddings: number[][] = [];
-    for (const text of texts) {
-      const embedding = await this.embedQuery(text);
-      embeddings.push(embedding);
-    }
-    return embeddings;
-  }
-}
-
-// Custom Ollama chat class for LangChain compatibility
-class ChatOllama {
-  private ollama: Ollama;
-  private model: string;
-
-  constructor(config: { model: string; baseUrl: string }) {
-    this.ollama = new Ollama({ host: config.baseUrl });
-    this.model = config.model;
-  }
-
-  async invoke(input: any): Promise<any> {
-    // Handle different input formats
-    let messages: any[];
-
-    if (Array.isArray(input)) {
-      messages = input;
-    } else if (input && typeof input === "object" && input.messages) {
-      messages = input.messages;
-    } else if (typeof input === "string") {
-      messages = [{ role: "user", content: input }];
-    } else {
-      messages = [{ role: "user", content: String(input) }];
-    }
-
-    const response = await this.ollama.chat({
-      model: this.model,
-      messages: messages,
-    });
-    return { content: response.message.content };
-  }
-
-  // Add required properties for LangChain compatibility
-  get callKeys(): string[] {
-    return ["stop"];
-  }
-
-  get _modelType(): string {
-    return "ollama";
-  }
-
-  get _llmType(): string {
-    return "ollama";
+  try {
+    return JSON.stringify(content);
+  } catch {
+    return String(content ?? "");
   }
 }
 
 export interface BaseRAGConfig {
-  ollamaUrl: string;
   llmModel: string;
   embedModel: string;
   pineconeApiKey: string;
@@ -106,7 +59,6 @@ export interface BaseRAGConfig {
 }
 
 export abstract class BaseRAGService {
-  protected ollamaUrl: string;
   protected llmModel: string;
   protected embedModel: string;
   protected pineconeApiKey: string;
@@ -118,7 +70,6 @@ export abstract class BaseRAGService {
   protected chunkOverlap: number;
 
   constructor(config: BaseRAGConfig) {
-    this.ollamaUrl = config.ollamaUrl;
     this.llmModel = config.llmModel;
     this.embedModel = config.embedModel;
     this.pineconeApiKey = config.pineconeApiKey;
@@ -159,11 +110,11 @@ export abstract class BaseRAGService {
       const chunks = await textSplitter.splitDocuments(docs);
       console.log(`Split into ${chunks.length} chunks`);
 
-      // Create embeddings
-      const embeddings = new OllamaEmbeddings({
+      // Create embeddings (OpenAI)
+      const embeddings = new OpenAIEmbeddings({
         model: this.embedModel,
-        baseUrl: this.ollamaUrl,
-      });
+        apiKey: process.env.OPENAI_API_KEY,
+      } as any);
 
       // Auto-detect embedding dimension
       const testEmbed = await embeddings.embedQuery("dimension test");
@@ -227,10 +178,10 @@ export abstract class BaseRAGService {
     try {
       if (!vectorStore) {
         // Initialize from existing index
-        const embeddings = new OllamaEmbeddings({
+        const embeddings = new OpenAIEmbeddings({
           model: this.embedModel,
-          baseUrl: this.ollamaUrl,
-        });
+          apiKey: process.env.OPENAI_API_KEY,
+        } as any);
         const pc = new Pinecone({ apiKey: this.pineconeApiKey });
         const pineconeIndex = pc.index(this.indexName);
         vectorStore = await PineconeStore.fromExistingIndex(embeddings, {
@@ -238,11 +189,12 @@ export abstract class BaseRAGService {
         });
       }
 
-      // Set up LLM
-      const llm = new ChatOllama({
+      // Set up LLM (OpenAI)
+      const llm = new ChatOpenAI({
         model: this.llmModel,
-        baseUrl: this.ollamaUrl,
-      });
+        temperature: 0.2,
+        apiKey: process.env.OPENAI_API_KEY,
+      } as any);
 
       // Check if the question is domain-related
       const isDomainRelated = await this.isDomainRelatedQuestion(question, llm);
@@ -251,10 +203,8 @@ export abstract class BaseRAGService {
       
       if (!isDomainRelated) {
         // Handle general conversation naturally
-        const generalAnswer = await llm.invoke([
-          {
-            role: "user",
-            content: `You are a helpful Swiss legal assistant. Respond naturally to this: ${question}. If it's a greeting, introduce yourself as a Swiss legal assistant and explain how you can help with legal questions.
+        const generalAnswer = await llm.invoke(
+          `You are a helpful Swiss legal assistant. Respond naturally to this: ${question}. If it's a greeting, introduce yourself as a Swiss legal assistant and explain how you can help with legal questions.
 
 IMPORTANT: Always format your response in markdown. Use proper markdown syntax for:
 - Headers (# ## ###)
@@ -265,12 +215,11 @@ IMPORTANT: Always format your response in markdown. Use proper markdown syntax f
 - Links ([text](url))
 - Blockquotes (> quote)
 
-Format your response in markdown:`,
-          },
-        ]);
+Format your response in markdown:`
+        );
 
         return {
-          answer: generalAnswer.content,
+          answer: resolveContentToString(generalAnswer.content),
           sources: [],
           confidence: 0.5,
           processingTime: Date.now() - startTime,
@@ -310,8 +259,8 @@ CRITICAL: Format your entire response in markdown. Use proper markdown syntax in
 
 Your response must be in markdown format.`;
 
-      const answer = await llm.invoke([{ role: "user", content: markdownPrompt }]);
-      const finalAnswer = answer.content;
+      const answer = await llm.invoke(markdownPrompt);
+      const finalAnswer = resolveContentToString(answer.content);
 
       // Format sources with better relevance
       const sources = docs.map((d: any, i: number) => ({
@@ -342,7 +291,7 @@ Your response must be in markdown format.`;
 
   protected async isDomainRelatedQuestion(
     question: string,
-    llm: ChatOllama
+    llm: { invoke: (input: any) => Promise<any> }
   ): Promise<boolean> {
     const lowerQuestion = question.toLowerCase().trim();
     
@@ -384,10 +333,9 @@ Answer only "YES" or "NO".
 
 Question: "${question}"`;
 
-      const response = await llm.invoke([
-        { role: "user", content: classificationPrompt },
-      ]);
-      const isRelated = response.content.trim().toUpperCase().includes("YES");
+      const response = await llm.invoke(classificationPrompt);
+      const responseText = resolveContentToString(response.content);
+      const isRelated = responseText.trim().toUpperCase().includes("YES");
       console.log(`Question: "${question}" -> Domain related: ${isRelated}`);
       return isRelated;
     } catch (error) {
