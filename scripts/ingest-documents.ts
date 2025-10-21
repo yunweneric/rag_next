@@ -9,7 +9,7 @@ async function ingestDocuments() {
   // Debug environment variables
   console.log('Environment variables:')
   console.log('PINECONE_API_KEY:', process.env.PINECONE_API_KEY ? 'Set' : 'Not set')
-  console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set')
+  console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set.')
 
   // Initialize the Swiss Legal Service
   const legalService = new SwissLegalService({
