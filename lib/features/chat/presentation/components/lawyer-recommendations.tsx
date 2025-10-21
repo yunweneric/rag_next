@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import Image from 'next/image'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, Check } from 'lucide-react'
@@ -24,32 +25,41 @@ interface LawyerRecommendationsProps {
 }
 
 export function LawyerRecommendations({ lawyers }: LawyerRecommendationsProps) {
+  // Generate different professional headshots for each lawyer
+  const getLawyerImage = (lawyer: Lawyer, index: number) => {
+    if (lawyer.image) return lawyer.image;
+    
+    // Different professional headshots from Unsplash
+    const professionalImages = [
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop&crop=face&auto=format&q=80',
+      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=300&fit=crop&crop=face&auto=format&q=80',
+      'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=300&fit=crop&crop=face&auto=format&q=80',
+      'https://images.unsplash.com/photo-1556157382-97eda2d62296?w=400&h=300&fit=crop&crop=face&auto=format&q=80',
+      'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=300&fit=crop&crop=face&auto=format&q=80'
+    ];
+    
+    return professionalImages[index % professionalImages.length];
+  };
 
   return (
-    <div className="mt-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
+    <div className="mt-3 p-2  border-t border-blue-200 mt-10">
       <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-1">
         <MapPin className="h-3 w-3" />
         Recommended Lawyers
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {lawyers.map((lawyer, index) => (
-          <Card key={index} className="overflow-hidden hover:shadow-md transition-shadow">
+          <Card key={index} className="p-0 pb-4 hover:cursor-pointer overflow-hidden shadow-none hover:shadow-md transition-shadow">
             {/* Profile Image Section */}
             <div className="relative">
-              <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                {lawyer.image ? (
-                  <img 
-                    src={lawyer.image} 
-                    alt={lawyer.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center">
-                    <span className="text-2xl font-semibold text-gray-600">
-                      {lawyer.name.split(' ').map(n => n[0]).join('')}
-                    </span>
-                  </div>
-                )}
+              <div className="w-full h-28 bg-gray-200 flex items-center justify-center">
+                <Image 
+                  src={getLawyerImage(lawyer, index)} 
+                  alt={lawyer.name}
+                  width={400}
+                  height={112}
+                  className="w-full h-full object-cover"
+                />
               </div>
               {/* Verified Badge */}
               <div className="absolute top-2 right-2">
@@ -61,8 +71,8 @@ export function LawyerRecommendations({ lawyers }: LawyerRecommendationsProps) {
             </div>
             
             {/* Text Section */}
-            <CardContent className="p-4 bg-gray-50">
-              <h4 className="font-semibold text-gray-900 text-lg mb-1">
+            <CardContent>
+              <h4 className="font-semibold text-gray-900 text-lg">
                 {lawyer.name}
               </h4>
               <p className="text-sm text-gray-600">

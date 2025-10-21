@@ -52,7 +52,7 @@ export class LawyerService extends BaseSupabaseService<'lawyers'> {
           availability: 'Mon-Fri 9:00-17:00',
           experience: '15+ years',
           languages: ['German', 'English', 'French'],
-          image: '/lawyers/markus-weber.jpg',
+          image: null,
           location: 'Zurich, Switzerland',
           relevanceScore: 4.5,
           matchReasons: ['Specializes in family law', 'High customer rating']
@@ -68,7 +68,7 @@ export class LawyerService extends BaseSupabaseService<'lawyers'> {
           availability: 'Mon-Fri 8:30-18:00',
           experience: '12+ years',
           languages: ['French', 'Spanish', 'English'],
-          image: '/lawyers/maria-rodriguez.jpg',
+          image: null,
           location: 'Geneva, Switzerland',
           relevanceScore: 4.2,
           matchReasons: ['Specializes in family law', 'Extensive experience']
@@ -84,7 +84,7 @@ export class LawyerService extends BaseSupabaseService<'lawyers'> {
           availability: 'Mon-Fri 9:00-17:30',
           experience: '18+ years',
           languages: ['German', 'English'],
-          image: '/lawyers/thomas-schmidt.jpg',
+          image: null,
           location: 'Zurich, Switzerland',
           relevanceScore: 3.8,
           matchReasons: ['Specializes in real estate law']
@@ -100,7 +100,7 @@ export class LawyerService extends BaseSupabaseService<'lawyers'> {
           availability: 'Mon-Fri 8:00-18:00',
           experience: '14+ years',
           languages: ['German', 'French', 'Italian'],
-          image: '/lawyers/anna-muller.jpg',
+          image: null,
           location: 'Bern, Switzerland',
           relevanceScore: 4.0,
           matchReasons: ['Specializes in criminal law', 'High customer rating']
@@ -116,7 +116,7 @@ export class LawyerService extends BaseSupabaseService<'lawyers'> {
           availability: 'Mon-Fri 9:00-17:00',
           experience: '20+ years',
           languages: ['French', 'English', 'German'],
-          image: '/lawyers/pierre-dubois.jpg',
+          image: null,
           location: 'Lausanne, Switzerland',
           relevanceScore: 4.7,
           matchReasons: ['Specializes in corporate law', 'High customer rating', 'Extensive experience']

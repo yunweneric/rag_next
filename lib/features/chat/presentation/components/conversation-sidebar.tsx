@@ -4,8 +4,10 @@ import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, MessageSquare, Trash2, Calendar } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Plus, MessageSquare, Trash2, Calendar, LogOut, User } from 'lucide-react'
 import { cn } from '@/lib/shared/utils/cn'
+import { useAuth } from '@/lib/features/auth/hooks/use-auth'
 
 interface Conversation {
   id: string
@@ -29,6 +31,7 @@ export function ConversationSidebar({
 }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
+  const { user, logout } = useAuth()
 
   useEffect(() => {
     loadConversations()
@@ -79,6 +82,11 @@ export function ConversationSidebar({
     return date.toLocaleDateString()
   }
 
+  const handleLogout = async () => {
+    await logout()
+    // Redirect will be handled by the auth system
+  }
+
   return (
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen">
       <div className="p-4 border-b border-gray-200">
@@ -94,16 +102,20 @@ export function ConversationSidebar({
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3">
+      <div className="flex-1 overflow-y-auto px-3 flex flex-col">
         {loading ? (
-          <div className="text-center text-gray-500 py-4">
-            Loading conversations...
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center text-gray-500 py-4">
+              Loading conversations...
+            </div>
           </div>
         ) : conversations.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
-            <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p className="text-sm">No conversations yet</p>
-            <p className="text-xs text-gray-400 mt-1">Start a new conversation to get started</p>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center text-gray-500 py-8">
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p className="text-sm">No conversations yet</p>
+              <p className="text-xs text-gray-400 mt-1">Start a new conversation to get started</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-1">
@@ -142,6 +154,35 @@ export function ConversationSidebar({
             ))}
           </div>
         )}
+      </div>
+
+      {/* User Info and Logout at Bottom */}
+      <div className="p-4 border-t border-gray-200">
+        <div className="flex items-center gap-3 mb-3">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user?.avatar_url || ''} />
+            <AvatarFallback>
+              <User className="h-4 w-4" />
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {user?.full_name || user?.username || 'User'}
+            </p>
+            <p className="text-xs text-gray-500 truncate">
+              {user?.email}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="w-full justify-start gap-2 text-gray-600 hover:text-red-600"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Button>
       </div>
     </div>
   )

@@ -685,14 +685,12 @@ export class SwissLegalService extends BaseRAGService {
   }
 
   protected getNoInformationMessage(): string {
-    return `I can help you with legal information about Swiss law! However, I don't have specific information about that particular aspect in my current knowledge base.
-
-To better assist you, could you please provide more details about your legal question? For example:
+    return `I'd be happy to help you with your legal question! To provide you with the most accurate information, could you please provide more details about your specific situation? For example:
 - What specific area of Swiss law are you asking about?
 - What is your particular situation or concern?
 - Are you looking for information about a specific legal procedure?
 
-Once I understand your question better, I can provide more targeted legal information. If I still cannot help, I'll be happy to recommend qualified Swiss lawyers who specialize in your area of concern.`
+Once I understand your question better, I can provide more targeted legal information. I can also recommend qualified Swiss lawyers who specialize in your area of concern.`
   }
 
   protected buildContext(docs: any[]): string {
@@ -707,26 +705,33 @@ ${doc.pageContent}`
   }
 
   protected getDomainPrompt(context: string, question: string): string {
-    return `You are a knowledgeable Swiss legal assistant. You have legal information about Swiss law! Based on the provided Swiss legal documents and information, please answer the following question about Swiss law.
+    return `You are a helpful Swiss legal assistant. You have extensive knowledge about Swiss law and can provide information on various legal topics.
 
 IMPORTANT INSTRUCTIONS:
-1. Start by acknowledging that you can help with legal information
-2. Only provide information based on the Swiss legal documents provided in the context below
-3. Always specify that your information is based on Swiss law
-4. If the context doesn't contain enough information to answer fully, ask follow-up questions to better understand the user's needs
+1. If the user greets you (like "Hi", "Hello", etc.), respond naturally and explain your role as a Swiss legal assistant. Tell them you can help with:
+   - Answering questions about Swiss law
+   - Providing legal information and guidance
+   - Explaining legal procedures and requirements
+   - Connecting them with qualified Swiss lawyers when needed
+   - Helping them understand their legal rights and obligations
+2. For legal questions, provide helpful information based on your knowledge of Swiss law
+3. Never mention that you are using referenced documents or sources - just provide the information naturally
+4. If you don't have enough information to answer fully, ask follow-up questions to better understand their needs
 5. Be precise and accurate in your legal explanations
 6. Use proper Swiss legal terminology when appropriate
 7. If discussing procedures, mention relevant Swiss legal codes or regulations when available
-8. ALWAYS end your response by offering to recommend qualified Swiss lawyers, regardless of whether you could answer the question or not
+8. ONLY recommend lawyers when:
+   - The user specifically asks for lawyer recommendations
+   - The user accepts your suggestion to recommend lawyers
+   - The legal question clearly requires professional legal assistance
+   - Do NOT automatically recommend lawyers for every response
 
 CONTEXT (Swiss Legal Documents):
 ${context}
 
 QUESTION: ${question}
 
-Remember to always end with: "Would you like me to recommend some qualified Swiss lawyers who might be able to help you with your specific legal needs?"
-
-Please provide a comprehensive answer based on the Swiss legal information provided above. If you need to recommend a lawyer, mention that you can connect them with qualified Swiss legal professionals.
+Please provide a comprehensive answer based on your knowledge of Swiss law. Only offer to recommend lawyers when appropriate (see instruction 8 above).
 
 If you recommend lawyers, provide them in this JSON format:
 {
