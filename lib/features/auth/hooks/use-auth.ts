@@ -5,6 +5,7 @@ import { AuthService, type AuthUser, type LoginCredentials, type SignupCredentia
 
 export interface UseAuthReturn {
   user: AuthUser | null
+  token: string | null
   loading: boolean
   error: string | null
   isAuthenticated: boolean
@@ -19,6 +20,7 @@ export interface UseAuthReturn {
 
 export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authService] = useState(() => new AuthService())
@@ -37,19 +39,7 @@ export function useAuth(): UseAuthReturn {
       try {
         setLoading(true)
         
-        // First try to get user from localStorage session
-        if (typeof window !== 'undefined') {
-          const { sessionManager } = await import('@/lib/shared/utils/session-manager')
-          const sessionUser = sessionManager.getCurrentUser()
-          
-          if (sessionUser && sessionManager.isSessionValid()) {
-            setUser(sessionUser)
-            setLoading(false)
-            return
-          }
-        }
-        
-        // Fallback to Supabase auth
+        // Get user from Supabase auth
         const currentUser = await authService.getCurrentUser()
         setUser(currentUser)
       } catch (err) {
@@ -63,6 +53,19 @@ export function useAuth(): UseAuthReturn {
     initializeAuth()
   }, [authService])
 
+  // Get token when user changes
+  useEffect(() => {
+    const getToken = async () => {
+      if (user) {
+        const token = await authService.getAccessToken()
+        setToken(token)
+      } else {
+        setToken(null)
+      }
+    }
+    getToken()
+  }, [user, authService])
+
   // Listen for auth state changes
   useEffect(() => {
     const { createClient } = require('@/lib/shared/utils/supabase/client')
@@ -73,20 +76,10 @@ export function useAuth(): UseAuthReturn {
         if (event === 'SIGNED_IN' && session?.user) {
           const userProfile = await authService.getUserProfile(session.user.id)
           setUser(userProfile)
-          
-          // Store session in localStorage
-          if (userProfile && typeof window !== 'undefined') {
-            const { sessionManager } = await import('@/lib/shared/utils/session-manager')
-            sessionManager.setSession(userProfile, 24)
-          }
+          setToken(session.access_token)
         } else if (event === 'SIGNED_OUT') {
           setUser(null)
-          
-          // Clear session from localStorage
-          if (typeof window !== 'undefined') {
-            const { sessionManager } = await import('@/lib/shared/utils/session-manager')
-            sessionManager.clearSession()
-          }
+          setToken(null)
         }
       }
     )
@@ -148,29 +141,25 @@ export function useAuth(): UseAuthReturn {
       setLoading(true)
       setError(null)
       
-      // Clear session from localStorage first
-      if (typeof window !== 'undefined') {
-        const { sessionManager } = await import('@/lib/shared/utils/session-manager')
-        sessionManager.clearSession()
-      }
-      
       const response = await authService.logout()
       
-      // Always clear user state regardless of response
+      // Always clear user state and token regardless of response
       setUser(null)
+      setToken(null)
       
       if (response.success) {
         return true
       } else {
-        // Even if logout fails, we've cleared local session
-        console.warn('Supabase logout failed, but local session cleared:', response.error?.message)
+        // Even if logout fails, we've cleared local state
+        console.warn('Supabase logout failed, but local state cleared:', response.error?.message)
         return true
       }
     } catch (err) {
       console.error('Logout error:', err)
-      // Clear user state even on error
+      // Clear user state and token even on error
       setUser(null)
-      return true // Consider successful since we cleared local session
+      setToken(null)
+      return true // Consider successful since we cleared local state
     } finally {
       setLoading(false)
     }
@@ -254,6 +243,7 @@ export function useAuth(): UseAuthReturn {
 
   return {
     user,
+    token,
     loading,
     error,
     isAuthenticated,

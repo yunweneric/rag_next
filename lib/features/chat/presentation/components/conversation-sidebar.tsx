@@ -48,7 +48,7 @@ export function ConversationSidebar({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null)
   
-  const { user, logout } = useAuth()
+  const { user, token, logout } = useAuth()
   const router = useRouter()
   
 
@@ -59,7 +59,12 @@ export function ConversationSidebar({
   const loadConversations = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/conversations')
+      const response = await fetch('/api/conversations', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
       if (response.ok) {
         const data = await response.json()
         setConversations(data.conversations || [])
@@ -77,12 +82,16 @@ export function ConversationSidebar({
   }
 
   const confirmDeleteConversation = async () => {
-    if (!conversationToDelete) return
+    if (!conversationToDelete || !token) return
     
     try {
       setDeletingConversationId(conversationToDelete)
       const response = await fetch(`/api/conversations/${conversationToDelete}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       })
       
       if (response.ok) {

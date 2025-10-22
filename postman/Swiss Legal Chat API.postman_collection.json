@@ -1,0 +1,882 @@
+{
+  "info": {
+    "name": "Swiss Legal Chat API",
+    "description": "API collection for Swiss Legal Chat application with JWT authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT token from Supabase authentication"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Auto-extract JWT token from login response",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.token) {",
+                  "        pm.collectionVariables.set('jwt_token', responseJson.token);",
+                  "        pm.collectionVariables.set('user_id', responseJson.user.id);",
+                  "        console.log('JWT token saved:', responseJson.token);",
+                  "        console.log('User ID saved:', responseJson.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login with email and password to get JWT token"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/auth/login",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "auth", "login"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"user\": {\n    \"id\": \"user_123\",\n    \"email\": \"user@example.com\",\n    \"username\": \"johndoe\",\n    \"full_name\": \"John Doe\",\n    \"avatar_url\": null,\n    \"created_at\": \"2024-01-15T10:00:00Z\",\n    \"updated_at\": \"2024-01-15T10:00:00Z\"\n  },\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"message\": \"Login successful\"\n}"
+            },
+            {
+              "name": "Validation Error Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"invalid-email\",\n  \"password\": \"123\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/auth/login",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "auth", "login"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Validation failed\",\n  \"details\": [\n    {\n      \"field\": \"email\",\n      \"message\": \"Invalid email format\"\n    },\n    {\n      \"field\": \"password\",\n      \"message\": \"Password must be at least 6 characters\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "Authentication Error Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"wrongpassword\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/auth/login",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "auth", "login"]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Invalid login credentials\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Auto-extract JWT token from registration response",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.token) {",
+                  "        pm.collectionVariables.set('jwt_token', responseJson.token);",
+                  "        pm.collectionVariables.set('user_id', responseJson.user.id);",
+                  "        console.log('JWT token saved:', responseJson.token);",
+                  "        console.log('User ID saved:', responseJson.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"username\": \"newuser\",\n  \"full_name\": \"New User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register a new user account and get JWT token"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"username\": \"newuser\",\n  \"full_name\": \"New User\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/auth/register",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "auth", "register"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"user\": {\n    \"id\": \"user_456\",\n    \"email\": \"newuser@example.com\",\n    \"username\": \"newuser\",\n    \"full_name\": \"New User\",\n    \"avatar_url\": null,\n    \"created_at\": \"2024-01-15T11:00:00Z\",\n    \"updated_at\": \"2024-01-15T11:00:00Z\"\n  },\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"message\": \"Registration successful\"\n}"
+            },
+            {
+              "name": "Validation Error Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"invalid-email\",\n  \"password\": \"123\",\n  \"username\": \"ab\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/auth/register",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "auth", "register"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Validation failed\",\n  \"details\": [\n    {\n      \"field\": \"email\",\n      \"message\": \"Invalid email format\"\n    },\n    {\n      \"field\": \"password\",\n      \"message\": \"Password must be at least 6 characters\"\n    },\n    {\n      \"field\": \"username\",\n      \"message\": \"Username must be at least 3 characters\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "Missing Fields Error Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"user@example.com\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/auth/register",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "auth", "register"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Validation failed\",\n  \"details\": [\n    {\n      \"field\": \"password\",\n      \"message\": \"Required\"\n    },\n    {\n      \"field\": \"username\",\n      \"message\": \"Required\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get JWT Token from Supabase",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This is a helper request to get JWT token from Supabase",
+                  "// In a real scenario, you would authenticate with Supabase directly",
+                  "// and extract the access_token from the session",
+                  "",
+                  "// Example JavaScript code to get token:",
+                  "// const { data } = await supabase.auth.signInWithPassword({",
+                  "//   email: 'user@example.com',",
+                  "//   password: 'password123'",
+                  "// });",
+                  "// const token = data.session.access_token;",
+                  "",
+                  "// For testing, manually set your JWT token here:",
+                  "pm.collectionVariables.set('jwt_token', 'YOUR_JWT_TOKEN_HERE');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "token"]
+            },
+            "description": "Helper endpoint to get JWT token (implement this if needed)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What are the requirements for starting a business in Switzerland?\",\n  \"conversationId\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat"]
+            },
+            "description": "Send a message to the Swiss Legal AI assistant"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"What are the requirements for starting a business in Switzerland?\",\n  \"conversationId\": null\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/chat",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "chat"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"answer\": \"To start a business in Switzerland, you need to...\",\n  \"sources\": [\n    {\n      \"content\": \"Business registration requirements...\",\n      \"page\": 15,\n      \"section\": \"Business Law\",\n      \"score\": 0.95\n    }\n  ],\n  \"confidence\": 0.92,\n  \"processingTime\": 1.5,\n  \"conversationId\": \"conv_123\",\n  \"shouldRecommendLawyers\": true,\n  \"lawyerRecommendations\": [\n    {\n      \"id\": \"lawyer_1\",\n      \"name\": \"Dr. John Smith\",\n      \"specialties\": [\"Business Law\", \"Corporate Law\"],\n      \"rating\": 4.8,\n      \"location\": \"Zurich\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Send Message to Existing Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What about tax requirements?\",\n  \"conversationId\": \"conv_123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat"]
+            },
+            "description": "Continue an existing conversation"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "Get All Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations"]
+            },
+            "description": "Get all conversations for the authenticated user"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/conversations",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "conversations"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"conversations\": [\n    {\n      \"id\": \"conv_123\",\n      \"title\": \"Business Requirements\",\n      \"created_at\": \"2024-01-15T10:30:00Z\",\n      \"updated_at\": \"2024-01-15T10:45:00Z\"\n    },\n    {\n      \"id\": \"conv_456\",\n      \"title\": \"Tax Questions\",\n      \"created_at\": \"2024-01-14T14:20:00Z\",\n      \"updated_at\": \"2024-01-14T15:10:00Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create New Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Business Inquiry\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/conversations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations"]
+            },
+            "description": "Create a new conversation"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"New Business Inquiry\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/conversations",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "conversations"]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"conversation\": {\n    \"id\": \"conv_789\",\n    \"title\": \"New Business Inquiry\",\n    \"user_id\": \"user_123\",\n    \"created_at\": \"2024-01-15T11:00:00Z\",\n    \"updated_at\": \"2024-01-15T11:00:00Z\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Conversation Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/{{conversation_id}}/messages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "{{conversation_id}}", "messages"]
+            },
+            "description": "Get all messages in a specific conversation"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/conversations/conv_123/messages",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "conversations", "conv_123", "messages"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"messages\": [\n    {\n      \"id\": \"msg_1\",\n      \"role\": \"user\",\n      \"content\": \"What are the requirements for starting a business in Switzerland?\",\n      \"created_at\": \"2024-01-15T10:30:00Z\"\n    },\n    {\n      \"id\": \"msg_2\",\n      \"role\": \"assistant\",\n      \"content\": \"To start a business in Switzerland, you need to...\",\n      \"sources\": [\n        {\n          \"content\": \"Business registration requirements...\",\n          \"page\": 15,\n          \"section\": \"Business Law\",\n          \"score\": 0.95\n        }\n      ],\n      \"confidence\": 0.92,\n      \"lawyer_recommendations\": [\n        {\n          \"id\": \"lawyer_1\",\n          \"name\": \"Dr. John Smith\",\n          \"specialties\": [\"Business Law\", \"Corporate Law\"],\n          \"rating\": 4.8,\n          \"location\": \"Zurich\"\n        }\n      ],\n      \"created_at\": \"2024-01-15T10:31:00Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Conversation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/{{conversation_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "{{conversation_id}}"]
+            },
+            "description": "Delete a specific conversation"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/conversations/conv_123",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "conversations", "conv_123"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Lawyers",
+      "item": [
+        {
+          "name": "Get All Lawyers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/lawyers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "lawyers"]
+            },
+            "description": "Get all available lawyers (no authentication required)"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/lawyers",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "lawyers"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"lawyers\": [\n    {\n      \"id\": \"lawyer_1\",\n      \"name\": \"Dr. John Smith\",\n      \"specialties\": [\"Business Law\", \"Corporate Law\"],\n      \"rating\": 4.8,\n      \"location\": \"Zurich\",\n      \"experience\": \"15 years\",\n      \"languages\": [\"English\", \"German\", \"French\"]\n    },\n    {\n      \"id\": \"lawyer_2\",\n      \"name\": \"Dr. Maria Garcia\",\n      \"specialties\": [\"Family Law\", \"Immigration Law\"],\n      \"rating\": 4.9,\n      \"location\": \"Geneva\",\n      \"experience\": \"12 years\",\n      \"languages\": [\"English\", \"French\", \"Spanish\"]\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Search Lawyers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/lawyers?q=business",
+              "host": ["{{base_url}}"],
+              "path": ["api", "lawyers"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "business",
+                  "description": "Search query for lawyer specialties"
+                }
+              ]
+            },
+            "description": "Search lawyers by specialty or name"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Error Examples",
+      "item": [
+        {
+          "name": "Unauthorized Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Test message without authentication\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat"]
+            },
+            "description": "Example of request without JWT token (should return 401)"
+          },
+          "response": [
+            {
+              "name": "Unauthorized Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"Test message without authentication\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/chat",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "chat"]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Unauthorized\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Invalid Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid_token_here"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Test message with invalid token\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat"]
+            },
+            "description": "Example of request with invalid JWT token (should return 401)"
+          },
+          "response": [
+            {
+              "name": "Invalid Token Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer invalid_token_here"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                "raw": "{\n  \"message\": \"Test message with invalid token\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/chat",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "chat"]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Unauthorized\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-set JWT token if available",
+          "if (pm.collectionVariables.get('jwt_token')) {",
+          "    console.log('Using JWT token:', pm.collectionVariables.get('jwt_token'));",
+          "} else {",
+          "    console.log('No JWT token set. Please authenticate first.');",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-extract JWT token from login response",
+          "if (pm.response.code === 200 && pm.response.json().token) {",
+          "    pm.collectionVariables.set('jwt_token', pm.response.json().token);",
+          "    console.log('JWT token saved to collection variables');",
+          "}"
+        ]
+      }
+    }
+  ]
+}

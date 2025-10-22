@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/shared/utils/supabase/server'
+import { validateJWTToken } from '@/lib/shared/utils/auth/jwt-auth'
 import { ChatConversationService } from '@/lib/features/chat/data/services/chat-conversation-service'
+import { createConversationSchema } from '@/lib/shared/validations'
+import { validateRequestBody, isValidationSuccess } from '@/lib/shared/utils/validation'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Check JWT token authentication
+    const { user, error: authError } = await validateJWTToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -28,15 +28,19 @@ export async function GET(request: NextRequest) {
 // Add POST method for creating conversations
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Check JWT token authentication
+    const { user, error: authError } = await validateJWTToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { title } = await request.json()
+    // Validate request body
+    const validation = await validateRequestBody(request, createConversationSchema)
+    if (!isValidationSuccess(validation)) {
+      return validation
+    }
+    
+    const { title } = validation.data
     const conversationService = new ChatConversationService()
     const conversation = await conversationService.createConversation(user.id, title)
 

@@ -93,6 +93,8 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
         password: credentials.password
       })
 
+
+
       if (error) {
         return {
           user: null,
@@ -105,11 +107,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
         const profile = await this.getUserProfile(data.user.id)
         
         if (profile) {
-          // Store session in localStorage
-          if (typeof window !== 'undefined') {
-            const { sessionManager } = await import('@/lib/shared/utils/session-manager')
-            sessionManager.setSession(profile, 24) // 24 hours
-          }
+          // Session is managed by Supabase automatically
         }
         
         return {
@@ -269,22 +267,15 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
   // Logout
   async logout(): Promise<AuthResponse> {
     try {
-      // Clear session from localStorage first
-      if (typeof window !== 'undefined') {
-        const { sessionManager } = await import('@/lib/shared/utils/session-manager')
-        sessionManager.clearSession()
-      }
-
       // Sign out from Supabase
       const { error } = await this.authSupabase.auth.signOut()
 
       if (error) {
         console.error('Supabase logout error:', error)
-        // Even if Supabase logout fails, we've cleared local session
         return {
           user: null,
           error,
-          success: true // Still consider it successful since local session is cleared
+          success: false
         }
       }
 
@@ -295,20 +286,10 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
       }
     } catch (error) {
       console.error('Logout error:', error)
-      // Clear local session even if there's an error
-      if (typeof window !== 'undefined') {
-        try {
-          const { sessionManager } = await import('@/lib/shared/utils/session-manager')
-          sessionManager.clearSession()
-        } catch (sessionError) {
-          console.error('Failed to clear session:', sessionError)
-        }
-      }
-      
       return {
         user: null,
         error: error as AuthError,
-        success: true // Consider successful since we cleared local session
+        success: false
       }
     }
   }
@@ -456,5 +437,53 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
       console.error('Error getting profile count:', error)
       return 0
     }
+  }
+
+  // Get access token for API calls
+  async getAccessToken(): Promise<string | null> {
+    try {
+      const { data: { session } } = await this.authSupabase.auth.getSession()
+      return session?.access_token || null
+    } catch (error) {
+      console.error('Error getting access token:', error)
+      return null
+    }
+  }
+
+  // Refresh token and return new access token
+  async refreshToken(): Promise<string | null> {
+    try {
+      const { data: { session }, error } = await this.authSupabase.auth.refreshSession()
+      
+      if (error || !session) {
+        console.error('Error refreshing token:', error)
+        return null
+      }
+      
+      return session.access_token
+    } catch (error) {
+      console.error('Error refreshing token:', error)
+      return null
+    }
+  }
+
+  // Make authenticated API call
+  async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
+    const token = await this.getAccessToken()
+    
+    if (!token) {
+      throw new Error('No access token available')
+    }
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...options.headers
+    }
+
+    return fetch(url, {
+      ...options,
+      headers
+    })
   }
 }

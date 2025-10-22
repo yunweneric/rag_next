@@ -1,25 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/shared/utils/supabase/server'
+import { validateJWTToken } from '@/lib/shared/utils/auth/jwt-auth'
 import { SwissLegalService } from '@/lib/features/chat/data/services/swiss-legal-service'
 import { LawyerService } from '@/lib/features/chat/data/services/lawyer-service'
 import { ChatConversationService } from '@/lib/features/chat/data/services/chat-conversation-service'
+import { chatMessageSchema } from '@/lib/shared/validations'
+import { validateRequestBody, isValidationSuccess } from '@/lib/shared/utils/validation'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Check JWT token authentication
+    const { user, error: authError } = await validateJWTToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { message, conversationId } = body
-
-    if (!message) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 })
+    // Validate request body
+    const validation = await validateRequestBody(request, chatMessageSchema)
+    if (!isValidationSuccess(validation)) {
+      return validation
     }
+    
+    const { message, conversationId } = validation.data
 
     // Initialize Swiss Legal Service (OpenAI)
     const legalService = new SwissLegalService({

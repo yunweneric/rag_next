@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/shared/utils/cn'
 import { LawyerRecommendations } from './lawyer-recommendations'
 import { Send, Trash } from 'lucide-react'
+import { useAuth } from '@/lib/features/auth/hooks/use-auth'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -35,6 +36,7 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
   const [conversationUpdatedAt, setConversationUpdatedAt] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const { token } = useAuth()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -47,18 +49,24 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
     
     setTypingMessage({ ...message, content: '' })
     
+    // Faster typing with adaptive chunk size for longer messages
+    const totalLength = fullText.length
+    const charsPerTick = totalLength > 800 ? 6 : totalLength > 400 ? 4 : totalLength > 200 ? 2 : 1
+    const intervalMs = 12
+
     const typeInterval = setInterval(() => {
       if (index < fullText.length) {
-        currentText += fullText[index]
+        const nextIndex = Math.min(index + charsPerTick, fullText.length)
+        currentText += fullText.slice(index, nextIndex)
         setTypingMessage({ ...message, content: currentText })
-        index++
+        index = nextIndex
       } else {
         clearInterval(typeInterval)
         setTypingMessage(null)
         setMessages(prev => [...prev, { ...message, content: fullText }])
         onComplete?.()
       }
-    }, 20) // Adjust speed as needed (lower = faster)
+    }, intervalMs)
   }
 
   const formatHeaderDate = (date: Date) => {
@@ -127,13 +135,18 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
   // Load conversation metadata (title, updated time) when conversationId changes
   useEffect(() => {
     const loadConversationMeta = async () => {
-      if (!conversationId) {
+      if (!conversationId || !token) {
         setConversationTitle('Chat')
         setConversationUpdatedAt(null)
         return
       }
       try {
-        const response = await fetch('/api/conversations')
+        const response = await fetch('/api/conversations', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
         if (response.ok) {
           const data = await response.json()
           const conv = (data.conversations || []).find((c: any) => c.id === conversationId)
@@ -147,12 +160,17 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
       }
     }
     loadConversationMeta()
-  }, [conversationId])
+  }, [conversationId, token])
 
   const loadMessages = async (convId: string) => {
     try {
       setLoadingMessages(true)
-      const response = await fetch(`/api/conversations/${convId}/messages`)
+      const response = await fetch(`/api/conversations/${convId}/messages`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
       if (response.ok) {
         const data = await response.json()
         const formattedMessages = data.messages.map((msg: any) => ({
@@ -173,7 +191,7 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || loading) return
+    if (!input.trim() || loading || !token) return
 
     const userMessage: Message = { role: 'user', content: input }
     setMessages((prev) => [...prev, userMessage])
@@ -184,6 +202,7 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ message: input, conversationId }),
@@ -234,9 +253,15 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
             className="p-2 rounded-md hover:bg-gray-100 text-gray-600 disabled:opacity-50"
             disabled={!conversationId}
             onClick={async () => {
-              if (!conversationId) return
+              if (!conversationId || !token) return
               try {
-                const resp = await fetch(`/api/conversations/${conversationId}`, { method: 'DELETE' })
+                const resp = await fetch(`/api/conversations/${conversationId}`, { 
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                })
                 if (resp.ok) {
                   setMessages([])
                   setConversationId(undefined)

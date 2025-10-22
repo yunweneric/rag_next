@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/shared/utils/supabase/server'
+import { validateJWTToken } from '@/lib/shared/utils/auth/jwt-auth'
 import { ChatConversationService } from '@/lib/features/chat/data/services/chat-conversation-service'
 
 export async function GET(
@@ -7,10 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient()
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Check JWT token authentication
+    const { user, error: authError } = await validateJWTToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
