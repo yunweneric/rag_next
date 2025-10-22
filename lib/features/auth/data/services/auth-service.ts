@@ -46,6 +46,19 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
     super({ tableName: 'profiles' })
   }
 
+  // Helper method to map database record to AuthUser
+  private mapToAuthUser(data: any): AuthUser {
+    return {
+      id: data.id,
+      email: data.email,
+      username: data.username,
+      full_name: data.full_name,
+      avatar_url: data.avatar_url,
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    }
+  }
+
   // Get current user
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
@@ -73,15 +86,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
         return null
       }
 
-      return {
-        id: data.id,
-        email: data.email,
-        username: data.username,
-        full_name: data.full_name,
-        avatar_url: data.avatar_url,
-        created_at: data.created_at,
-        updated_at: data.updated_at
-      }
+      return this.mapToAuthUser(data)
     } catch (error) {
       console.error('Error getting user profile:', error)
       return null
@@ -105,14 +110,10 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
       }
 
       if (data.user && data.session) {
-        // Get user profile from database
-        const { data: profile, error: profileError } = await this.authSupabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single()
+        // Get user profile from database using base service
+        const profile = await this.getById(data.user.id)
 
-        if (profileError || !profile) {
+        if (!profile) {
           return {
             user: null,
             error: { message: 'Failed to get user profile' } as AuthError,
@@ -120,15 +121,8 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
           }
         }
 
-        const authUser: AuthUser = {
-          id: profile.id,
-          email: profile.email,
-          username: profile.username,
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          created_at: profile.created_at,
-          updated_at: profile.updated_at
-        }
+        const authUser = this.mapToAuthUser(profile)
+        console.log("auth user", authUser)
 
         return {
           user: authUser,
@@ -175,22 +169,19 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
           success: false
         }
       }
+      console.log("data", data)
 
       if (data.user) {
-        // Create user profile in database
-        const { data: profile, error: profileError } = await this.authSupabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            email: credentials.email,
-            username: credentials.username,
-            full_name: credentials.full_name || credentials.username
-          })
-          .select()
-          .single()
+        // Create user profile in database using base service
+        const profile = await this.create({
+          id: data.user.id,
+          email: credentials.email,
+          username: credentials.username,
+          full_name: credentials.full_name || credentials.username
+        })
 
-        if (profileError) {
-          console.error('Profile creation error:', profileError)
+        if (!profile) {
+          console.error('Profile creation failed')
           return {
             user: null,
             error: { message: 'Failed to create user profile' } as AuthError,
@@ -198,15 +189,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
           }
         }
 
-        const authUser: AuthUser = {
-          id: profile.id,
-          email: profile.email,
-          username: profile.username,
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          created_at: profile.created_at,
-          updated_at: profile.updated_at
-        }
+        const authUser = this.mapToAuthUser(profile)
 
         return {
           user: authUser,
@@ -362,24 +345,6 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
     }
   }
 
-  // Create user profile
-  private async createUserProfile(userId: string, profileData: {
-    email: string
-    username: string
-    full_name: string
-  }): Promise<void> {
-    try {
-      await this.create({
-        id: userId,
-        email: profileData.email,
-        username: profileData.username,
-        full_name: profileData.full_name
-      })
-    } catch (error) {
-      console.error('Error creating user profile:', error)
-    }
-  }
-
   // Check if user is authenticated
   async isAuthenticated(): Promise<boolean> {
     try {
@@ -411,15 +376,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
   async getAllProfiles(): Promise<AuthUser[]> {
     try {
       const profiles = await this.getAll()
-      return profiles?.map(profile => ({
-        id: profile.id,
-        email: profile.email,
-        username: profile.username,
-        full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
-        created_at: profile.created_at,
-        updated_at: profile.updated_at
-      })) || []
+      return profiles?.map(profile => this.mapToAuthUser(profile)) || []
     } catch (error) {
       console.error('Error getting all profiles:', error)
       return []
@@ -434,15 +391,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
           .or(`username.ilike.%${query}%,email.ilike.%${query}%,full_name.ilike.%${query}%`)
       )
       
-      return profiles?.map(profile => ({
-        id: profile.id,
-        email: profile.email,
-        username: profile.username,
-        full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
-        created_at: profile.created_at,
-        updated_at: profile.updated_at
-      })) || []
+      return profiles?.map(profile => this.mapToAuthUser(profile)) || []
     } catch (error) {
       console.error('Error searching profiles:', error)
       return []
@@ -488,26 +437,14 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
         return { user: null, error: 'Invalid token' }
       }
 
-      // Get user profile
-      const { data: profile, error: profileError } = await this.authSupabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+      // Get user profile using base service
+      const profile = await this.getById(user.id)
 
-      if (profileError || !profile) {
+      if (!profile) {
         return { user: null, error: 'User profile not found' }
       }
 
-      const authUser: AuthUser = {
-        id: profile.id,
-        email: profile.email,
-        username: profile.username,
-        full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
-        created_at: profile.created_at,
-        updated_at: profile.updated_at
-      }
+      const authUser = this.mapToAuthUser(profile)
 
       return { user: authUser, error: null }
     } catch (error) {
