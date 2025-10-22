@@ -36,7 +36,7 @@ export function SignupForm({
       full_name: fullName 
     })
     if (success) {
-      router.push('/verify-otp')
+      router.push('/chat')
     }
   }
 

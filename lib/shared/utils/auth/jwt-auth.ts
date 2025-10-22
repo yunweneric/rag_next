@@ -1,9 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest } from 'next/server'
-import type { User } from '@supabase/supabase-js'
+import { AuthService } from '@/lib/features/auth/data/services/auth-service'
+import type { AuthUser } from '@/lib/features/auth/data/services/auth-service'
 
 export interface AuthResult {
-  user: User | null
+  user: AuthUser | null
   error: string | null
 }
 
@@ -18,20 +18,13 @@ export async function validateJWTToken(request: NextRequest): Promise<AuthResult
     
     const token = authHeader.replace('Bearer ', '')
     
-    // Create Supabase client to verify the token
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    // Use AuthService to validate token and get user profile
+    const authService = new AuthService()
+    const { user, error } = await authService.validateToken(token)
     
-    const { data: { user }, error } = await supabase.auth.getUser(token)
-    
-    if (error || !user) {
-      return { user: null, error: 'Invalid token' }
-    }
-    
-    return { user, error: null }
+    return { user, error }
   } catch (error) {
+    console.error('Token validation error:', error)
     return { user: null, error: 'Token validation failed' }
   }
 }

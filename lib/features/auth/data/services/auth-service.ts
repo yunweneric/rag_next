@@ -89,7 +89,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
   }
 
   // Login with email and password (server-side)
-  async login(credentials: LoginCredentials): Promise<AuthResponse & { token?: string }> {
+  async login(credentials: LoginCredentials): Promise<AuthResponse & { token?: string; refreshToken?: string }> {
     try {
       const { data, error } = await this.authSupabase.auth.signInWithPassword({
         email: credentials.email,
@@ -133,6 +133,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
         return {
           user: authUser,
           token: data.session.access_token,
+          refreshToken: data.session.refresh_token,
           error: null,
           success: true
         }
@@ -153,8 +154,8 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
     }
   }
 
-  // Signup with email and password
-  async signup(credentials: SignupCredentials): Promise<AuthResponse> {
+  // Signup with email and password (server-side)
+  async signup(credentials: SignupCredentials): Promise<AuthResponse & { token?: string; refreshToken?: string }> {
     try {
       const { data, error } = await this.authSupabase.auth.signUp({
         email: credentials.email,
@@ -176,23 +177,41 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
       }
 
       if (data.user) {
-        // Create user profile
-        await this.createUserProfile(data.user.id, {
-          email: credentials.email,
-          username: credentials.username,
-          full_name: credentials.full_name || credentials.username
-        })
-
-        return {
-          user: {
+        // Create user profile in database
+        const { data: profile, error: profileError } = await this.authSupabase
+          .from('profiles')
+          .insert({
             id: data.user.id,
             email: credentials.email,
             username: credentials.username,
-            full_name: credentials.full_name || credentials.username,
-            avatar_url: undefined,
-            created_at: data.user.created_at,
-            updated_at: data.user.created_at
-          },
+            full_name: credentials.full_name || credentials.username
+          })
+          .select()
+          .single()
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError)
+          return {
+            user: null,
+            error: { message: 'Failed to create user profile' } as AuthError,
+            success: false
+          }
+        }
+
+        const authUser: AuthUser = {
+          id: profile.id,
+          email: profile.email,
+          username: profile.username,
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url,
+          created_at: profile.created_at,
+          updated_at: profile.updated_at
+        }
+
+        return {
+          user: authUser,
+          token: data.session?.access_token || undefined,
+          refreshToken: data.session?.refresh_token || undefined,
           error: null,
           success: true
         }
@@ -494,6 +513,28 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
     } catch (error) {
       console.error('Token validation error:', error)
       return { user: null, error: 'Token validation failed' }
+    }
+  }
+
+  // Refresh access token using refresh token
+  async refreshAccessToken(refreshToken: string): Promise<{ token?: string; refreshToken?: string; error: string | null }> {
+    try {
+      const { data, error } = await this.authSupabase.auth.refreshSession({
+        refresh_token: refreshToken
+      })
+
+      if (error || !data.session) {
+        return { error: 'Failed to refresh token' }
+      }
+
+      return {
+        token: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        error: null
+      }
+    } catch (error) {
+      console.error('Token refresh error:', error)
+      return { error: 'Token refresh failed' }
     }
   }
 }

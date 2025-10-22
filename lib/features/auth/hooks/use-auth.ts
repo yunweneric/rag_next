@@ -1,17 +1,19 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AuthService, type AuthUser, type LoginCredentials, type SignupCredentials, type OTPVerification } from '../data/services/auth-service'
+import { type AuthUser, type LoginCredentials, type SignupCredentials, type OTPVerification } from '../data/services/auth-service'
 
 export interface UseAuthReturn {
   user: AuthUser | null
   token: string | null
+  refreshToken: string | null
   loading: boolean
   error: string | null
   isAuthenticated: boolean
   login: (credentials: LoginCredentials) => Promise<boolean>
   signup: (credentials: SignupCredentials) => Promise<boolean>
   logout: () => Promise<boolean>
+  refreshTokens: () => Promise<boolean>
   verifyOTP: (otpData: OTPVerification) => Promise<boolean>
   resendOTP: (email: string, type?: 'signup' | 'recovery') => Promise<boolean>
   updateProfile: (updates: Partial<AuthUser>) => Promise<boolean>
@@ -21,9 +23,9 @@ export interface UseAuthReturn {
 export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
+  const [refreshToken, setRefreshToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [authService] = useState(() => new AuthService())
 
   // Check if user is authenticated
   const isAuthenticated = !!user
@@ -33,15 +35,22 @@ export function useAuth(): UseAuthReturn {
     setError(null)
   }, [])
 
-  // Initialize auth state
+  // Initialize auth state from localStorage
   useEffect(() => {
-    const initializeAuth = async () => {
+    const initializeAuth = () => {
       try {
         setLoading(true)
         
-        // Get user from Supabase auth
-        const currentUser = await authService.getCurrentUser()
-        setUser(currentUser)
+        // Get stored auth data from localStorage
+        const storedUser = localStorage.getItem('auth_user')
+        const storedToken = localStorage.getItem('auth_token')
+        const storedRefreshToken = localStorage.getItem('auth_refresh_token')
+        
+        if (storedUser && storedToken) {
+          setUser(JSON.parse(storedUser))
+          setToken(storedToken)
+          setRefreshToken(storedRefreshToken)
+        }
       } catch (err) {
         console.error('Error initializing auth:', err)
         setError('Failed to initialize authentication')
@@ -51,41 +60,44 @@ export function useAuth(): UseAuthReturn {
     }
 
     initializeAuth()
-  }, [authService])
+  }, [])
 
-  // Get token when user changes
+  // Auto-refresh token when it's about to expire
   useEffect(() => {
-    const getToken = async () => {
-      if (user) {
-        const token = await authService.getAccessToken()
-        setToken(token)
-      } else {
-        setToken(null)
-      }
-    }
-    getToken()
-  }, [user, authService])
+    if (!refreshToken) return
 
-  // Listen for auth state changes
-  useEffect(() => {
-    const { createClient } = require('@/lib/shared/utils/supabase/client')
-    const supabase = createClient()
+    const refreshInterval = setInterval(async () => {
+      try {
+        const response = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refreshToken })
+        })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: any, session: any) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const userProfile = await authService.getUserProfile(session.user.id)
-          setUser(userProfile)
-          setToken(session.access_token)
-        } else if (event === 'SIGNED_OUT') {
+        if (response.ok) {
+          const data = await response.json()
+          setToken(data.token)
+          setRefreshToken(data.refreshToken)
+          localStorage.setItem('auth_token', data.token)
+          localStorage.setItem('auth_refresh_token', data.refreshToken)
+        } else {
+          // Refresh failed, logout user
           setUser(null)
           setToken(null)
+          setRefreshToken(null)
+          localStorage.removeItem('auth_user')
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('auth_refresh_token')
         }
+      } catch (error) {
+        console.error('Token refresh failed:', error)
       }
-    )
+    }, 50 * 60 * 1000) // Refresh every 50 minutes
 
-    return () => subscription.unsubscribe()
-  }, [authService])
+    return () => clearInterval(refreshInterval)
+  }, [refreshToken])
 
   // Login function
   const login = useCallback(async (credentials: LoginCredentials): Promise<boolean> => {
@@ -93,13 +105,29 @@ export function useAuth(): UseAuthReturn {
       setLoading(true)
       setError(null)
       
-      const response = await authService.login(credentials)
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials)
+      })
+
+      const data = await response.json()
       
-      if (response.success && response.user) {
-        setUser(response.user)
+      if (response.ok && data.success) {
+        setUser(data.user)
+        setToken(data.token)
+        setRefreshToken(data.refreshToken)
+        
+        // Store in localStorage
+        localStorage.setItem('auth_user', JSON.stringify(data.user))
+        localStorage.setItem('auth_token', data.token)
+        localStorage.setItem('auth_refresh_token', data.refreshToken)
+        
         return true
       } else {
-        setError(response.error?.message || 'Login failed')
+        setError(data.error || 'Login failed')
         return false
       }
     } catch (err) {
@@ -109,7 +137,7 @@ export function useAuth(): UseAuthReturn {
     } finally {
       setLoading(false)
     }
-  }, [authService])
+  }, [])
 
   // Signup function
   const signup = useCallback(async (credentials: SignupCredentials): Promise<boolean> => {
@@ -117,13 +145,29 @@ export function useAuth(): UseAuthReturn {
       setLoading(true)
       setError(null)
       
-      const response = await authService.signup(credentials)
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials)
+      })
+
+      const data = await response.json()
       
-      if (response.success && response.user) {
-        setUser(response.user)
+      if (response.ok && data.success) {
+        setUser(data.user)
+        setToken(data.token)
+        setRefreshToken(data.refreshToken)
+        
+        // Store in localStorage
+        localStorage.setItem('auth_user', JSON.stringify(data.user))
+        localStorage.setItem('auth_token', data.token)
+        localStorage.setItem('auth_refresh_token', data.refreshToken)
+        
         return true
       } else {
-        setError(response.error?.message || 'Signup failed')
+        setError(data.error || 'Signup failed')
         return false
       }
     } catch (err) {
@@ -133,7 +177,7 @@ export function useAuth(): UseAuthReturn {
     } finally {
       setLoading(false)
     }
-  }, [authService])
+  }, [])
 
   // Logout function
   const logout = useCallback(async (): Promise<boolean> => {
@@ -141,115 +185,116 @@ export function useAuth(): UseAuthReturn {
       setLoading(true)
       setError(null)
       
-      const response = await authService.logout()
-      
-      // Always clear user state and token regardless of response
+      // Clear user state and tokens
       setUser(null)
       setToken(null)
+      setRefreshToken(null)
       
-      if (response.success) {
-        return true
-      } else {
-        // Even if logout fails, we've cleared local state
-        console.warn('Supabase logout failed, but local state cleared:', response.error?.message)
-        return true
-      }
+      // Clear localStorage
+      localStorage.removeItem('auth_user')
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_refresh_token')
+      
+      return true
     } catch (err) {
       console.error('Logout error:', err)
       // Clear user state and token even on error
       setUser(null)
       setToken(null)
-      return true // Consider successful since we cleared local state
+      setRefreshToken(null)
+      localStorage.removeItem('auth_user')
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_refresh_token')
+      return true
     } finally {
       setLoading(false)
     }
-  }, [authService])
+  }, [])
 
-  // Verify OTP function
+  // Refresh tokens function
+  const refreshTokens = useCallback(async (): Promise<boolean> => {
+    if (!refreshToken) {
+      setError('No refresh token available')
+      return false
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken })
+      })
+
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        setToken(data.token)
+        setRefreshToken(data.refreshToken)
+        
+        // Update localStorage
+        localStorage.setItem('auth_token', data.token)
+        localStorage.setItem('auth_refresh_token', data.refreshToken)
+        
+        return true
+      } else {
+        setError(data.error || 'Token refresh failed')
+        // If refresh fails, logout user
+        setUser(null)
+        setToken(null)
+        setRefreshToken(null)
+        localStorage.removeItem('auth_user')
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_refresh_token')
+        return false
+      }
+    } catch (err) {
+      console.error('Token refresh error:', err)
+      setError('An unexpected error occurred during token refresh')
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }, [refreshToken])
+
+  // Verify OTP function (placeholder - would need API endpoint)
   const verifyOTP = useCallback(async (otpData: OTPVerification): Promise<boolean> => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const response = await authService.verifyOTP(otpData)
-      
-      if (response.success && response.user) {
-        setUser(response.user)
-        return true
-      } else {
-        setError(response.error?.message || 'OTP verification failed')
-        return false
-      }
-    } catch (err) {
-      console.error('OTP verification error:', err)
-      setError('An unexpected error occurred during OTP verification')
-      return false
-    } finally {
-      setLoading(false)
-    }
-  }, [authService])
+    setError('OTP verification not implemented with new API structure')
+    return false
+  }, [])
 
-  // Resend OTP function
+  // Resend OTP function (placeholder - would need API endpoint)
   const resendOTP = useCallback(async (email: string, type: 'signup' | 'recovery' = 'signup'): Promise<boolean> => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const response = await authService.resendOTP(email, type)
-      
-      if (response.success) {
-        return true
-      } else {
-        setError(response.error?.message || 'Failed to resend OTP')
-        return false
-      }
-    } catch (err) {
-      console.error('Resend OTP error:', err)
-      setError('An unexpected error occurred while resending OTP')
-      return false
-    } finally {
-      setLoading(false)
-    }
-  }, [authService])
+    setError('Resend OTP not implemented with new API structure')
+    return false
+  }, [])
 
-  // Update profile function
+  // Update profile function (placeholder - would need API endpoint)
   const updateProfile = useCallback(async (updates: Partial<AuthUser>): Promise<boolean> => {
     if (!user) {
       setError('No user logged in')
       return false
     }
 
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const response = await authService.updateProfile(user.id, updates)
-      
-      if (response.success && response.user) {
-        setUser(response.user)
-        return true
-      } else {
-        setError(response.error?.message || 'Profile update failed')
-        return false
-      }
-    } catch (err) {
-      console.error('Profile update error:', err)
-      setError('An unexpected error occurred during profile update')
-      return false
-    } finally {
-      setLoading(false)
-    }
-  }, [authService, user])
+    setError('Profile update not implemented with new API structure')
+    return false
+  }, [user])
 
   return {
     user,
     token,
+    refreshToken,
     loading,
     error,
     isAuthenticated,
     login,
     signup,
     logout,
+    refreshTokens,
     verifyOTP,
     resendOTP,
     updateProfile,
