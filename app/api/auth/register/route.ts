@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthService } from '@/lib/features/auth/data/services/auth-service'
+import { createClient } from '@supabase/supabase-js'
 import { registerSchema } from '@/lib/shared/validations'
 import { validateRequestBody, isValidationSuccess } from '@/lib/shared/utils/validation'
 
@@ -13,35 +13,63 @@ export async function POST(request: NextRequest) {
     
     const { email, password, username, full_name } = validation.data
 
-    const authService = new AuthService()
-    const response = await authService.signup({
+    // Create Supabase client for server-side authentication
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    // Register user with Supabase
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      username,
-      full_name: full_name || username
+      options: {
+        data: {
+          username,
+          full_name: full_name || username
+        }
+      }
     })
 
-    if (!response.success || !response.user) {
+    if (error || !data.user) {
       return NextResponse.json(
-        { error: response.error?.message || 'Registration failed' },
+        { error: error?.message || 'Registration failed' },
         { status: 400 }
       )
     }
 
-    // Get the JWT token from the current session
-    const token = await authService.getAccessToken()
-    
-    if (!token) {
+    // Create user profile in database
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: data.user.id,
+        email,
+        username,
+        full_name: full_name || username
+      })
+      .select()
+      .single()
+
+    if (profileError) {
+      console.error('Profile creation error:', profileError)
       return NextResponse.json(
-        { error: 'Registration successful but failed to get access token' },
+        { error: 'Failed to create user profile' },
         { status: 500 }
       )
     }
 
     return NextResponse.json({
       success: true,
-      user: response.user,
-      token: token,
+      user: {
+        id: profile.id,
+        email: profile.email,
+        username: profile.username,
+        full_name: profile.full_name,
+        avatar_url: profile.avatar_url,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at
+      },
+      token: data.session?.access_token || null,
       message: 'Registration successful'
     })
 

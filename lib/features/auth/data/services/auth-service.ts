@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/shared/utils/supabase/client'
+import { createClient } from '@supabase/supabase-js'
 import { BaseSupabaseService } from '@/lib/shared/data/services/base_supabase_service'
 import type { User, AuthError } from '@supabase/supabase-js'
 
@@ -37,7 +37,10 @@ export interface OTPVerification {
 }
 
 export class AuthService extends BaseSupabaseService<'profiles'> {
-  private authSupabase = createClient()
+  private authSupabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   constructor() {
     super({ tableName: 'profiles' })
@@ -85,15 +88,13 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
     }
   }
 
-  // Login with email and password
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+  // Login with email and password (server-side)
+  async login(credentials: LoginCredentials): Promise<AuthResponse & { token?: string }> {
     try {
       const { data, error } = await this.authSupabase.auth.signInWithPassword({
         email: credentials.email,
         password: credentials.password
       })
-
-
 
       if (error) {
         return {
@@ -103,15 +104,35 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
         }
       }
 
-      if (data.user) {
-        const profile = await this.getUserProfile(data.user.id)
-        
-        if (profile) {
-          // Session is managed by Supabase automatically
+      if (data.user && data.session) {
+        // Get user profile from database
+        const { data: profile, error: profileError } = await this.authSupabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single()
+
+        if (profileError || !profile) {
+          return {
+            user: null,
+            error: { message: 'Failed to get user profile' } as AuthError,
+            success: false
+          }
         }
-        
+
+        const authUser: AuthUser = {
+          id: profile.id,
+          email: profile.email,
+          username: profile.username,
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url,
+          created_at: profile.created_at,
+          updated_at: profile.updated_at
+        }
+
         return {
-          user: profile,
+          user: authUser,
+          token: data.session.access_token,
           error: null,
           success: true
         }
@@ -439,51 +460,40 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
     }
   }
 
-  // Get access token for API calls
-  async getAccessToken(): Promise<string | null> {
+  // Validate JWT token (for API routes)
+  async validateToken(token: string): Promise<{ user: AuthUser | null; error: string | null }> {
     try {
-      const { data: { session } } = await this.authSupabase.auth.getSession()
-      return session?.access_token || null
-    } catch (error) {
-      console.error('Error getting access token:', error)
-      return null
-    }
-  }
-
-  // Refresh token and return new access token
-  async refreshToken(): Promise<string | null> {
-    try {
-      const { data: { session }, error } = await this.authSupabase.auth.refreshSession()
+      const { data: { user }, error } = await this.authSupabase.auth.getUser(token)
       
-      if (error || !session) {
-        console.error('Error refreshing token:', error)
-        return null
+      if (error || !user) {
+        return { user: null, error: 'Invalid token' }
       }
-      
-      return session.access_token
+
+      // Get user profile
+      const { data: profile, error: profileError } = await this.authSupabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError || !profile) {
+        return { user: null, error: 'User profile not found' }
+      }
+
+      const authUser: AuthUser = {
+        id: profile.id,
+        email: profile.email,
+        username: profile.username,
+        full_name: profile.full_name,
+        avatar_url: profile.avatar_url,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at
+      }
+
+      return { user: authUser, error: null }
     } catch (error) {
-      console.error('Error refreshing token:', error)
-      return null
+      console.error('Token validation error:', error)
+      return { user: null, error: 'Token validation failed' }
     }
-  }
-
-  // Make authenticated API call
-  async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
-    const token = await this.getAccessToken()
-    
-    if (!token) {
-      throw new Error('No access token available')
-    }
-
-    const headers = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...options.headers
-    }
-
-    return fetch(url, {
-      ...options,
-      headers
-    })
   }
 }
