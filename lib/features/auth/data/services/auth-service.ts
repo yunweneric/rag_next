@@ -1,16 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
-import { BaseSupabaseService } from '@/lib/shared/data/services/base_supabase_service'
-import type { User, AuthError } from '@supabase/supabase-js'
+import { UserService, type AuthUser } from './user-service'
+import { registerSchema } from '@/lib/shared/validations/auth'
+import type { AuthError } from '@supabase/supabase-js'
 
-export interface AuthUser {
-  id: string
-  email: string
-  username?: string
-  full_name?: string
-  avatar_url?: string
-  created_at: string
-  updated_at: string
-}
+// Re-export AuthUser from UserService for backward compatibility
+export type { AuthUser }
 
 export interface LoginCredentials {
   email: string
@@ -36,27 +30,21 @@ export interface OTPVerification {
   type: 'email' | 'sms'
 }
 
-export class AuthService extends BaseSupabaseService<'profiles'> {
+export class AuthService extends UserService {
   private authSupabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  constructor() {
-    super({ tableName: 'profiles' })
-  }
+  private adminSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY as string
+      )
+    : null
 
-  // Helper method to map database record to AuthUser
-  private mapToAuthUser(data: any): AuthUser {
-    return {
-      id: data.id,
-      email: data.email,
-      username: data.username,
-      full_name: data.full_name,
-      avatar_url: data.avatar_url,
-      created_at: data.created_at,
-      updated_at: data.updated_at
-    }
+  constructor() {
+    super()
   }
 
   // Get current user
@@ -68,9 +56,8 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
         return null
       }
 
-      // Get user profile
-      const profile = await this.getUserProfile(user.id)
-      return profile
+      // Get user profile using inherited method
+      return await this.getUserById(user.id)
     } catch (error) {
       console.error('Error getting current user:', error)
       return null
@@ -80,13 +67,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
   // Get user profile by ID
   async getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
-      const data = await this.getById(userId)
-      
-      if (!data) {
-        return null
-      }
-
-      return this.mapToAuthUser(data)
+      return await this.getUserById(userId)
     } catch (error) {
       console.error('Error getting user profile:', error)
       return null
@@ -110,8 +91,8 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
       }
 
       if (data.user && data.session) {
-        // Get user profile from database using base service
-        const profile = await this.getById(data.user.id)
+        // Get user profile from database using inherited method
+        const profile = await this.getUserById(data.user.id)
 
         if (!profile) {
           return {
@@ -121,11 +102,10 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
           }
         }
 
-        const authUser = this.mapToAuthUser(profile)
-        console.log("auth user", authUser)
+        console.log("auth user", profile)
 
         return {
-          user: authUser,
+          user: profile,
           token: data.session.access_token,
           refreshToken: data.session.refresh_token,
           error: null,
@@ -151,6 +131,80 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
   // Signup with email and password (server-side)
   async signup(credentials: SignupCredentials): Promise<AuthResponse & { token?: string; refreshToken?: string }> {
     try {
+      
+      // Check if user already exists by email
+      const userExists = await this.userExistsByEmail(credentials.email)
+      if (userExists) {
+        return {
+          user: null,
+          error: { message: 'User already exists with this email address' } as AuthError,
+          success: false
+        }
+      }
+
+      // Preferred path: use admin client to ensure session via immediate sign-in
+      if (this.adminSupabase) {
+        const { data: adminData, error: adminError } = await this.adminSupabase.auth.admin.createUser({
+          email: credentials.email,
+          password: credentials.password,
+          email_confirm: true,
+          user_metadata: {
+            username: credentials.username,
+            full_name: credentials.full_name || credentials.username
+          }
+        })
+
+        if (adminError || !adminData.user) {
+          return {
+            user: null,
+            error: (adminError as unknown as AuthError) || ({ message: 'Failed to create user' } as AuthError),
+            success: false
+          }
+        }
+
+        // Sign in to get a valid session
+        const { data: signInData, error: signInError } = await this.authSupabase.auth.signInWithPassword({
+          email: credentials.email,
+          password: credentials.password
+        })
+
+        if (signInError || !signInData.session) {
+          // Optional rollback
+          try { await this.adminSupabase.auth.admin.deleteUser(adminData.user.id) } catch {}
+          return {
+            user: null,
+            error: (signInError as unknown as AuthError) || ({ message: 'Failed to create session' } as AuthError),
+            success: false
+          }
+        }
+
+        // Create profile
+        const profile = await this.createUser({
+          id: adminData.user.id,
+          email: credentials.email,
+          username: credentials.username,
+          full_name: credentials.full_name || credentials.username
+        })
+
+        if (!profile) {
+          try { await this.adminSupabase.auth.admin.deleteUser(adminData.user.id) } catch {}
+          return {
+            user: null,
+            error: { message: 'Failed to create user profile' } as AuthError,
+            success: false
+          }
+        }
+
+        return {
+          user: profile,
+          token: signInData.session.access_token,
+          refreshToken: signInData.session.refresh_token,
+          error: null,
+          success: true
+        }
+      }
+
+      // Fallback: anon signUp; attempt immediate signIn if session is null
       const { data, error } = await this.authSupabase.auth.signUp({
         email: credentials.email,
         password: credentials.password,
@@ -169,41 +223,47 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
           success: false
         }
       }
-      console.log("data", data)
 
-      if (data.user) {
-        // Create user profile in database using base service
-        const profile = await this.create({
-          id: data.user.id,
+      let session = data.session
+      let authUserId = data.user?.id
+      if (!session) {
+        const { data: signInData } = await this.authSupabase.auth.signInWithPassword({
           email: credentials.email,
-          username: credentials.username,
-          full_name: credentials.full_name || credentials.username
+          password: credentials.password
         })
+        session = signInData?.session || null
+        authUserId = signInData?.user?.id || authUserId
+      }
 
-        if (!profile) {
-          console.error('Profile creation failed')
-          return {
-            user: null,
-            error: { message: 'Failed to create user profile' } as AuthError,
-            success: false
-          }
-        }
-
-        const authUser = this.mapToAuthUser(profile)
-
+      if (!authUserId) {
         return {
-          user: authUser,
-          token: data.session?.access_token || undefined,
-          refreshToken: data.session?.refresh_token || undefined,
-          error: null,
-          success: true
+          user: null,
+          error: { message: 'Signup created user without id' } as AuthError,
+          success: false
+        }
+      }
+
+      const profile = await this.createUser({
+        id: authUserId,
+        email: credentials.email,
+        username: credentials.username,
+        full_name: credentials.full_name || credentials.username
+      })
+
+      if (!profile) {
+        return {
+          user: null,
+          error: { message: 'Failed to create user profile' } as AuthError,
+          success: false
         }
       }
 
       return {
-        user: null,
+        user: profile,
+        token: session?.access_token || undefined,
+        refreshToken: session?.refresh_token || undefined,
         error: null,
-        success: false
+        success: Boolean(session)
       }
     } catch (error) {
       console.error('Signup error:', error)
@@ -233,7 +293,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
       }
 
       if (data.user) {
-        const profile = await this.getUserProfile(data.user.id)
+        const profile = await this.getUserById(data.user.id)
         return {
           user: profile,
           error: null,
@@ -320,7 +380,7 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
   // Update user profile
   async updateProfile(userId: string, updates: Partial<AuthUser>): Promise<AuthResponse> {
     try {
-      const data = await this.updateById(userId, updates)
+      const data = await this.updateUser(userId, updates)
 
       if (!data) {
         return {
@@ -372,61 +432,8 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
     }
   }
 
-  // Get all user profiles (admin function)
-  async getAllProfiles(): Promise<AuthUser[]> {
-    try {
-      const profiles = await this.getAll()
-      return profiles?.map(profile => this.mapToAuthUser(profile)) || []
-    } catch (error) {
-      console.error('Error getting all profiles:', error)
-      return []
-    }
-  }
-
-  // Search profiles by username or email
-  async searchProfiles(query: string): Promise<AuthUser[]> {
-    try {
-      const profiles = await this.getByQuery((queryBuilder) => 
-        queryBuilder
-          .or(`username.ilike.%${query}%,email.ilike.%${query}%,full_name.ilike.%${query}%`)
-      )
-      
-      return profiles?.map(profile => this.mapToAuthUser(profile)) || []
-    } catch (error) {
-      console.error('Error searching profiles:', error)
-      return []
-    }
-  }
-
-  // Delete user profile
-  async deleteProfile(userId: string): Promise<boolean> {
-    try {
-      return await this.deleteById(userId)
-    } catch (error) {
-      console.error('Error deleting profile:', error)
-      return false
-    }
-  }
-
-  // Check if profile exists
-  async profileExists(userId: string): Promise<boolean> {
-    try {
-      return await this.exists(userId)
-    } catch (error) {
-      console.error('Error checking profile existence:', error)
-      return false
-    }
-  }
-
-  // Get profile count
-  async getProfileCount(): Promise<number> {
-    try {
-      return await this.count()
-    } catch (error) {
-      console.error('Error getting profile count:', error)
-      return 0
-    }
-  }
+  // Note: All profile management methods are now inherited from UserService
+  // You can use: getAllUsers(), searchUsers(), deleteUser(), userExistsById(), getUserCount()
 
   // Validate JWT token (for API routes)
   async validateToken(token: string): Promise<{ user: AuthUser | null; error: string | null }> {
@@ -437,16 +444,14 @@ export class AuthService extends BaseSupabaseService<'profiles'> {
         return { user: null, error: 'Invalid token' }
       }
 
-      // Get user profile using base service
-      const profile = await this.getById(user.id)
+      // Get user profile using inherited method
+      const profile = await this.getUserById(user.id)
 
       if (!profile) {
         return { user: null, error: 'User profile not found' }
       }
 
-      const authUser = this.mapToAuthUser(profile)
-
-      return { user: authUser, error: null }
+      return { user: profile, error: null }
     } catch (error) {
       console.error('Token validation error:', error)
       return { user: null, error: 'Token validation failed' }

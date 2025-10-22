@@ -257,4 +257,45 @@ export class BaseSupabaseService<T extends TableName> {
       return false
     }
   }
+
+  // Check if record exists by email
+  async existsByEmail(email: string): Promise<boolean> {
+    try {
+      const { data, error } = await this.supabase
+        .from(this.tableName as any)
+        .select('id')
+        .eq('email', email)
+        .single()
+
+      if (error) {
+        return false
+      }
+
+      return !!data
+    } catch (error) {
+      console.error(`Error in existsByEmail method for ${this.tableName}:`, error)
+      return false
+    }
+  }
+
+  // Get record by email
+  async getByEmail(email: string): Promise<any | null> {
+    try {
+      const { data: result, error } = await this.supabase
+        .from(this.tableName as any)
+        .select('*')
+        .eq('email', email)
+        .single()
+
+      if (error) {
+        console.error(`Error fetching ${this.tableName} by email:`, error)
+        return null
+      }
+
+      return result
+    } catch (error) {
+      console.error(`Error in getByEmail method for ${this.tableName}:`, error)
+      return null
+    }
+  }
 }
