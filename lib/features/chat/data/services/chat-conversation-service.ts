@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/shared/utils/supabase/server'
 import type { Database } from '@/lib/shared/types/database'
+import type { Citation, ResponseMetrics } from '@/lib/shared/types/llm-response'
 
 type ChatConversation = Database['public']['Tables']['chat_conversations']['Row']
 type ChatConversationInsert = Database['public']['Tables']['chat_conversations']['Insert']
@@ -9,11 +10,11 @@ type ChatMessage = Database['public']['Tables']['chat_messages']['Row']
 type ChatMessageInsert = Database['public']['Tables']['chat_messages']['Insert']
 
 export class ChatConversationService {
-  private async getSupabase() {
-    return await createClient()
-  }
+    constructor(private token?: string) {}
 
-  constructor() {}
+  private async getSupabase() {
+    return await createClient(this.token)
+  }
 
   async createConversation(userId: string, title: string): Promise<ChatConversation | null> {
     try {
@@ -87,12 +88,32 @@ export class ChatConversationService {
     }
   }
 
-  async addMessage(messageData: ChatMessageInsert): Promise<ChatMessage | null> {
+  async addMessage(messageData: {
+    conversation_id: string
+    role: string
+    content: string
+    sources?: any
+    confidence?: number
+    citations?: Citation[]
+    follow_ups?: string[]
+    metrics?: ResponseMetrics
+    response_version?: number
+  }): Promise<ChatMessage | null> {
     try {
       const supabase = await this.getSupabase()
       const { data: message, error } = await supabase
         .from('chat_messages')
-        .insert(messageData)
+        .insert({
+          conversation_id: messageData.conversation_id,
+          role: messageData.role,
+          content: messageData.content,
+          sources: messageData.sources || null,
+          confidence: messageData.confidence || null,
+          citations: messageData.citations || null,
+          follow_ups: messageData.follow_ups || null,
+          metrics: messageData.metrics || null,
+          response_version: messageData.response_version || 1
+        })
         .select()
         .single()
 
@@ -112,6 +133,45 @@ export class ChatConversationService {
       return message
     } catch (error) {
       console.error('Error in addMessage:', error)
+      return null
+    }
+  }
+
+  async addMessageV2(conversationId: string, role: string, response: import('@/lib/shared/types/llm-response').AssistantResponseV2): Promise<ChatMessage | null> {
+    try {
+      const supabase = await this.getSupabase()
+      const { data: message, error } = await supabase
+        .from('chat_messages')
+        .insert({
+          conversation_id: conversationId,
+          role,
+          content: response.message.textMd,
+          sources: response.sources,
+          confidence: response.metrics.confidence,
+          citations: response.citations,
+          follow_ups: response.followUps,
+          metrics: response.metrics,
+          response_version: 2
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error adding message v2:', error)
+        return null
+      }
+
+      // Update conversation timestamp
+      await supabase
+        .from('chat_conversations')
+        .update({
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', conversationId)
+
+      return message
+    } catch (error) {
+      console.error('Error in addMessageV2:', error)
       return null
     }
   }

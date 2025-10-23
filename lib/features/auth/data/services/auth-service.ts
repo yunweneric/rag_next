@@ -30,6 +30,10 @@ export interface OTPVerification {
   type: 'email' | 'sms'
 }
 
+/**
+ * AuthService following official Supabase patterns and best practices
+ * Based on the official Supabase documentation for authentication
+ */
 export class AuthService extends UserService {
   private authSupabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,7 +51,9 @@ export class AuthService extends UserService {
     super()
   }
 
-  // Get current user
+  /**
+   * Get current user following official Supabase patterns
+   */
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
       const { data: { user }, error } = await this.authSupabase.auth.getUser()
@@ -64,7 +70,9 @@ export class AuthService extends UserService {
     }
   }
 
-  // Get user profile by ID
+  /**
+   * Get user profile by ID following official Supabase patterns
+   */
   async getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
       return await this.getUserById(userId)
@@ -74,7 +82,9 @@ export class AuthService extends UserService {
     }
   }
 
-  // Login with email and password (server-side)
+  /**
+   * Login with email and password following official Supabase patterns
+   */
   async login(credentials: LoginCredentials): Promise<AuthResponse & { token?: string; refreshToken?: string }> {
     try {
       const { data, error } = await this.authSupabase.auth.signInWithPassword({
@@ -102,7 +112,7 @@ export class AuthService extends UserService {
           }
         }
 
-        console.log("auth user", profile)
+        console.log("AuthService: User authenticated successfully", profile)
 
         return {
           user: profile,
@@ -119,7 +129,7 @@ export class AuthService extends UserService {
         success: false
       }
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('AuthService: Login error:', error)
       return {
         user: null,
         error: error as AuthError,
@@ -128,10 +138,23 @@ export class AuthService extends UserService {
     }
   }
 
-  // Signup with email and password (server-side)
+  /**
+   * Signup with email and password following official Supabase patterns
+   */
   async signup(credentials: SignupCredentials): Promise<AuthResponse & { token?: string; refreshToken?: string }> {
     try {
-      
+      // Validate input data using Zod
+      const validationResult = registerSchema.safeParse(credentials)
+      if (!validationResult.success) {
+        return {
+          user: null,
+          error: { 
+            message: validationResult.error.errors.map(e => e.message).join(', ') 
+          } as AuthError,
+          success: false
+        }
+      }
+
       // Check if user already exists by email
       const userExists = await this.userExistsByEmail(credentials.email)
       if (userExists) {
@@ -142,115 +165,76 @@ export class AuthService extends UserService {
         }
       }
 
-      // Preferred path: use admin client to ensure session via immediate sign-in
-      if (this.adminSupabase) {
-        const { data: adminData, error: adminError } = await this.adminSupabase.auth.admin.createUser({
-          email: credentials.email,
-          password: credentials.password,
-          email_confirm: true,
-          user_metadata: {
-            username: credentials.username,
-            full_name: credentials.full_name || credentials.username
-          }
-        })
-
-        if (adminError || !adminData.user) {
-          return {
-            user: null,
-            error: (adminError as unknown as AuthError) || ({ message: 'Failed to create user' } as AuthError),
-            success: false
-          }
-        }
-
-        // Sign in to get a valid session
-        const { data: signInData, error: signInError } = await this.authSupabase.auth.signInWithPassword({
-          email: credentials.email,
-          password: credentials.password
-        })
-
-        if (signInError || !signInData.session) {
-          // Optional rollback
-          try { await this.adminSupabase.auth.admin.deleteUser(adminData.user.id) } catch {}
-          return {
-            user: null,
-            error: (signInError as unknown as AuthError) || ({ message: 'Failed to create session' } as AuthError),
-            success: false
-          }
-        }
-
-        // Create profile
-        const profile = await this.createUser({
-          id: adminData.user.id,
-          email: credentials.email,
-          username: credentials.username,
-          full_name: credentials.full_name || credentials.username
-        })
-
-        if (!profile) {
-          try { await this.adminSupabase.auth.admin.deleteUser(adminData.user.id) } catch {}
-          return {
-            user: null,
-            error: { message: 'Failed to create user profile' } as AuthError,
-            success: false
-          }
-        }
-
+      // Use admin API to create user (bypasses auth.users table issues)
+      console.log('AuthService: Using admin API to create user...')
+      
+      if (!this.adminSupabase) {
         return {
-          user: profile,
-          token: signInData.session.access_token,
-          refreshToken: signInData.session.refresh_token,
-          error: null,
-          success: true
+          user: null,
+          error: { message: 'Admin client not available. Please set SUPABASE_SERVICE_ROLE_KEY' } as AuthError,
+          success: false
         }
       }
 
-      // Fallback: anon signUp; attempt immediate signIn if session is null
-      const { data, error } = await this.authSupabase.auth.signUp({
+      const { data: adminData, error: adminError } = await this.adminSupabase.auth.admin.createUser({
         email: credentials.email,
         password: credentials.password,
-        options: {
-          data: {
-            username: credentials.username,
-            full_name: credentials.full_name || credentials.username
-          }
+        email_confirm: true,
+        user_metadata: {
+          username: credentials.username,
+          full_name: credentials.full_name || credentials.username
         }
       })
 
-      if (error) {
+      console.log('AuthService: Admin user creation result:', { data: adminData, error: adminError })
+
+      if (adminError || !adminData.user) {
+        console.error('AuthService: Admin user creation error:', adminError)
         return {
           user: null,
-          error,
+          error: adminError || { message: 'Failed to create user' } as AuthError,
           success: false
         }
       }
 
-      let session = data.session
-      let authUserId = data.user?.id
-      if (!session) {
-        const { data: signInData } = await this.authSupabase.auth.signInWithPassword({
-          email: credentials.email,
-          password: credentials.password
-        })
-        session = signInData?.session || null
-        authUserId = signInData?.user?.id || authUserId
-      }
+      console.log('AuthService: Admin user created:', adminData.user.id)
 
-      if (!authUserId) {
+      // Sign in to get session
+      const { data: signInData, error: signInError } = await this.authSupabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password
+      })
+
+      if (signInError || !signInData.session) {
+        console.error('AuthService: Sign in error:', signInError)
         return {
           user: null,
-          error: { message: 'Signup created user without id' } as AuthError,
+          error: signInError || { message: 'Failed to create session' } as AuthError,
           success: false
         }
       }
 
+      console.log('AuthService: User signed in successfully')
+
+      // Create user profile in database using server-side client
+      console.log('AuthService: Creating user profile with data:', {
+        id: adminData.user.id,
+        email: credentials.email,
+        username: credentials.username,
+        full_name: credentials.full_name || credentials.username
+      })
+      
       const profile = await this.createUser({
-        id: authUserId,
+        id: adminData.user.id,
         email: credentials.email,
         username: credentials.username,
         full_name: credentials.full_name || credentials.username
       })
 
+      console.log('AuthService: Profile creation result:', profile)
+
       if (!profile) {
+        console.error('AuthService: Profile creation failed - returning error')
         return {
           user: null,
           error: { message: 'Failed to create user profile' } as AuthError,
@@ -260,13 +244,13 @@ export class AuthService extends UserService {
 
       return {
         user: profile,
-        token: session?.access_token || undefined,
-        refreshToken: session?.refresh_token || undefined,
+        token: signInData.session.access_token,
+        refreshToken: signInData.session.refresh_token,
         error: null,
-        success: Boolean(session)
+        success: true
       }
     } catch (error) {
-      console.error('Signup error:', error)
+      console.error('AuthService: Signup error:', error)
       return {
         user: null,
         error: error as AuthError,
@@ -275,7 +259,9 @@ export class AuthService extends UserService {
     }
   }
 
-  // Verify OTP
+  /**
+   * Verify OTP following official Supabase patterns
+   */
   async verifyOTP(otpData: OTPVerification): Promise<AuthResponse> {
     try {
       const { data, error } = await this.authSupabase.auth.verifyOtp({
@@ -307,7 +293,7 @@ export class AuthService extends UserService {
         success: false
       }
     } catch (error) {
-      console.error('OTP verification error:', error)
+      console.error('AuthService: OTP verification error:', error)
       return {
         user: null,
         error: error as AuthError,
@@ -316,7 +302,9 @@ export class AuthService extends UserService {
     }
   }
 
-  // Resend OTP
+  /**
+   * Resend OTP following official Supabase patterns
+   */
   async resendOTP(email: string, type: 'signup' | 'recovery' = 'signup'): Promise<AuthResponse> {
     try {
       const { error } = await this.authSupabase.auth.resend({
@@ -338,7 +326,7 @@ export class AuthService extends UserService {
         success: true
       }
     } catch (error) {
-      console.error('Resend OTP error:', error)
+      console.error('AuthService: Resend OTP error:', error)
       return {
         user: null,
         error: error as AuthError,
@@ -347,14 +335,16 @@ export class AuthService extends UserService {
     }
   }
 
-  // Logout
+  /**
+   * Logout following official Supabase patterns
+   */
   async logout(): Promise<AuthResponse> {
     try {
       // Sign out from Supabase
       const { error } = await this.authSupabase.auth.signOut()
 
       if (error) {
-        console.error('Supabase logout error:', error)
+        console.error('AuthService: Supabase logout error:', error)
         return {
           user: null,
           error,
@@ -368,7 +358,7 @@ export class AuthService extends UserService {
         success: true
       }
     } catch (error) {
-      console.error('Logout error:', error)
+      console.error('AuthService: Logout error:', error)
       return {
         user: null,
         error: error as AuthError,
@@ -377,7 +367,9 @@ export class AuthService extends UserService {
     }
   }
 
-  // Update user profile
+  /**
+   * Update user profile following official Supabase patterns
+   */
   async updateProfile(userId: string, updates: Partial<AuthUser>): Promise<AuthResponse> {
     try {
       const data = await this.updateUser(userId, updates)
@@ -396,7 +388,7 @@ export class AuthService extends UserService {
         success: true
       }
     } catch (error) {
-      console.error('Update profile error:', error)
+      console.error('AuthService: Update profile error:', error)
       return {
         user: null,
         error: error as AuthError,
@@ -405,18 +397,22 @@ export class AuthService extends UserService {
     }
   }
 
-  // Check if user is authenticated
+  /**
+   * Check if user is authenticated following official Supabase patterns
+   */
   async isAuthenticated(): Promise<boolean> {
     try {
       const user = await this.getCurrentUser()
       return !!user
     } catch (error) {
-      console.error('Error checking authentication:', error)
+      console.error('AuthService: Error checking authentication:', error)
       return false
     }
   }
 
-  // Get auth session
+  /**
+   * Get auth session following official Supabase patterns
+   */
   async getSession() {
     try {
       const { data: { session }, error } = await this.authSupabase.auth.getSession()
@@ -427,15 +423,14 @@ export class AuthService extends UserService {
 
       return session
     } catch (error) {
-      console.error('Error getting session:', error)
+      console.error('AuthService: Error getting session:', error)
       return null
     }
   }
 
-  // Note: All profile management methods are now inherited from UserService
-  // You can use: getAllUsers(), searchUsers(), deleteUser(), userExistsById(), getUserCount()
-
-  // Validate JWT token (for API routes)
+  /**
+   * Validate JWT token following official Supabase patterns
+   */
   async validateToken(token: string): Promise<{ user: AuthUser | null; error: string | null }> {
     try {
       const { data: { user }, error } = await this.authSupabase.auth.getUser(token)
@@ -453,12 +448,14 @@ export class AuthService extends UserService {
 
       return { user: profile, error: null }
     } catch (error) {
-      console.error('Token validation error:', error)
+      console.error('AuthService: Token validation error:', error)
       return { user: null, error: 'Token validation failed' }
     }
   }
 
-  // Refresh access token using refresh token
+  /**
+   * Refresh access token following official Supabase patterns
+   */
   async refreshAccessToken(refreshToken: string): Promise<{ token?: string; refreshToken?: string; error: string | null }> {
     try {
       const { data, error } = await this.authSupabase.auth.refreshSession({
@@ -475,8 +472,28 @@ export class AuthService extends UserService {
         error: null
       }
     } catch (error) {
-      console.error('Token refresh error:', error)
+      console.error('AuthService: Token refresh error:', error)
       return { error: 'Token refresh failed' }
+    }
+  }
+
+  /**
+   * Get user statistics following official Supabase patterns
+   */
+  async getUserStatistics(): Promise<{
+    totalUsers: number
+    activeUsers: number
+    newUsersThisMonth: number
+  }> {
+    try {
+      return await this.getUserStatistics()
+    } catch (error) {
+      console.error('AuthService: Error getting user statistics:', error)
+      return {
+        totalUsers: 0,
+        activeUsers: 0,
+        newUsersThisMonth: 0
+      }
     }
   }
 }

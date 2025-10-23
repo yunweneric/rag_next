@@ -3,20 +3,19 @@ import { PineconeStore } from "@langchain/pinecone";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import type { AssistantResponseV2, EnhancedSource, Citation, ResponseMetrics } from '@/lib/shared/types/llm-response';
 
 // Module-level singleton store
 let vectorStore: PineconeStore | null = null;
 
 export interface RAGResponse {
   answer: string;
-  sources: Array<{
-    content: string;
-    page: number;
-    section?: string;
-    score: number;
-  }>;
+  sources: EnhancedSource[];
   confidence: number;
   processingTime: number;
+  citations: Citation[];
+  followUps: string[];
+  metrics: ResponseMetrics;
 }
 
 // Normalize LangChain/OpenAI message content to a string
@@ -223,6 +222,13 @@ Format your response in markdown:`
           sources: [],
           confidence: 0.5,
           processingTime: Date.now() - startTime,
+          citations: [],
+          followUps: [],
+          metrics: {
+            confidence: 0.5,
+            processingTime: Date.now() - startTime,
+            tokenUsage: { prompt: 0, completion: 0, total: 0 }
+          }
         };
       }
 
@@ -236,6 +242,13 @@ Format your response in markdown:`
           sources: [],
           confidence: 0,
           processingTime: Date.now() - startTime,
+          citations: [],
+          followUps: [],
+          metrics: {
+            confidence: 0,
+            processingTime: Date.now() - startTime,
+            tokenUsage: { prompt: 0, completion: 0, total: 0 }
+          }
         };
       }
 
@@ -262,21 +275,34 @@ Your response must be in markdown format.`;
       const answer = await llm.invoke(markdownPrompt);
       const finalAnswer = resolveContentToString(answer.content);
 
-      // Format sources with better relevance
-      const sources = docs.map((d: any, i: number) => ({
-        content: d.pageContent,
-        page: d.metadata?.loc?.pageNumber || 0,
-        section: d.metadata?.section,
-        score: Math.max(0.1, 0.9 - i * 0.2),
-      }));
-
+      // Create enhanced sources with stable IDs and URLs
+      const sources = this.createEnhancedSources(docs);
+      
+      // Attach citations to the answer
+      const { textWithCitations, citations } = this.attachCitations(finalAnswer, sources);
+      
+      // Generate follow-up questions
+      const followUps = await this.generateFollowUps(question, finalAnswer, llm);
+      
       const confidence = Math.min(0.95, 0.6 + docs.length * 0.1);
+      const processingTime = Date.now() - startTime;
 
       return {
-        answer: finalAnswer,
+        answer: textWithCitations,
         sources,
         confidence,
-        processingTime: Date.now() - startTime,
+        processingTime,
+        citations,
+        followUps,
+        metrics: {
+          confidence,
+          processingTime,
+          tokenUsage: {
+            prompt: 0, // Could be enhanced to track actual token usage
+            completion: 0,
+            total: 0
+          }
+        }
       };
     } catch (error) {
       console.error("Error querying:", error);
@@ -285,6 +311,13 @@ Your response must be in markdown format.`;
         sources: [],
         confidence: 0,
         processingTime: Date.now() - startTime,
+        citations: [],
+        followUps: [],
+        metrics: {
+          confidence: 0,
+          processingTime: Date.now() - startTime,
+          tokenUsage: { prompt: 0, completion: 0, total: 0 }
+        }
       };
     }
   }
@@ -361,5 +394,82 @@ Question: "${question}"`;
     } catch {
       return false;
     }
+  }
+
+  // Helper method to generate follow-up questions
+  private async generateFollowUps(question: string, answer: string, llm: any): Promise<string[]> {
+    try {
+      const followUpPrompt = `Based on this question and answer, suggest 3 helpful follow-up questions that a user might want to ask. Keep them concise and relevant.
+
+Question: ${question}
+Answer: ${answer}
+
+Return only the questions, one per line, without numbering or bullet points.`;
+
+      const response = await llm.invoke(followUpPrompt);
+      const responseText = resolveContentToString(response.content);
+      
+      return responseText
+        .split('\n')
+        .map(q => q.trim())
+        .filter(q => q.length > 0)
+        .slice(0, 3);
+    } catch (error) {
+      console.error('Error generating follow-ups:', error);
+      return [];
+    }
+  }
+
+  // Helper method to create enhanced sources with stable IDs and URLs
+  private createEnhancedSources(docs: any[]): EnhancedSource[] {
+    return docs.map((doc, index) => {
+      const page = doc.metadata?.loc?.pageNumber || 0;
+      const content = doc.pageContent || '';
+      const score = Math.max(0.1, 0.9 - index * 0.2);
+      
+      // Create stable ID based on content hash and page
+      const contentHash = this.hashString(content.slice(0, 100));
+      const id = `pdf:${page}:${contentHash}`;
+      
+      return {
+        id,
+        title: `Swiss Legal Code – Page ${page}`,
+        page,
+        url: `/docs/swiss_legal.pdf#page=${page}`,
+        snippet: content.slice(0, 200) + (content.length > 200 ? '...' : ''),
+        score
+      };
+    });
+  }
+
+  // Helper method to attach citations to answer text
+  private attachCitations(answer: string, sources: EnhancedSource[]): { textWithCitations: string; citations: Citation[] } {
+    const citations: Citation[] = [];
+    let textWithCitations = answer;
+    
+    // Add citation markers [1], [2], etc. at the end of sentences that reference sources
+    sources.forEach((source, index) => {
+      const marker = index + 1;
+      citations.push({
+        marker,
+        sourceId: source.id
+      });
+      
+      // Add citation marker at the end of the text
+      textWithCitations += ` [${marker}]`;
+    });
+    
+    return { textWithCitations, citations };
+  }
+
+  // Helper method to create a simple hash of a string
+  private hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(36);
   }
 }

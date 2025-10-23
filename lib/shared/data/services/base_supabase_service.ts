@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/shared/utils/supabase/client'
+import { createClient } from '@/lib/shared/utils/supabase/server'
 import type { Database } from '@/lib/shared/types/database'
 
 export type TableName = keyof Database['public']['Tables']
@@ -7,17 +7,35 @@ export interface BaseSupabaseServiceConfig {
   tableName: TableName
 }
 
+/**
+ * Base service class following official Supabase patterns and best practices
+ * Based on the official Supabase documentation for TypeScript services
+ */
 export class BaseSupabaseService<T extends TableName> {
   protected tableName: T
-  protected supabase = createClient()
+  protected supabase: any
 
   constructor(config: BaseSupabaseServiceConfig) {
     this.tableName = config.tableName as T
+    this.initializeSupabase()
   }
 
-  // Create a single record
+  private async initializeSupabase() {
+    // Use server-side client for proper authentication handling
+    this.supabase = await createClient()
+  }
+
+  /**
+   * Create a single record following official Supabase patterns
+   */
   async create(data: any): Promise<any | null> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
+      console.log(`Creating ${this.tableName} with data:`, data)
+      
       const { data: result, error } = await this.supabase
         .from(this.tableName as any)
         .insert(data)
@@ -29,6 +47,7 @@ export class BaseSupabaseService<T extends TableName> {
         return null
       }
 
+      console.log(`Successfully created ${this.tableName}:`, result)
       return result
     } catch (error) {
       console.error(`Error in create method for ${this.tableName}:`, error)
@@ -36,9 +55,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Create multiple records
+  /**
+   * Create multiple records
+   */
   async createMany(data: any[]): Promise<any[] | null> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { data: result, error } = await this.supabase
         .from(this.tableName as any)
         .insert(data)
@@ -56,9 +81,17 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Get a single record by ID
+  /**
+   * Get a single record by ID
+   */
   async getById(id: string): Promise<any | null> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
+      console.log(`Looking up ${this.tableName} with ID:`, id)
+      
       const { data: result, error } = await this.supabase
         .from(this.tableName as any)
         .select('*')
@@ -70,6 +103,7 @@ export class BaseSupabaseService<T extends TableName> {
         return null
       }
 
+      console.log(`Found ${this.tableName}:`, result)
       return result
     } catch (error) {
       console.error(`Error in getById method for ${this.tableName}:`, error)
@@ -77,12 +111,27 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Get all records
-  async getAll(): Promise<any[] | null> {
+  /**
+   * Get all records with optional filtering
+   */
+  async getAll(filters?: Record<string, any>): Promise<any[] | null> {
     try {
-      const { data: result, error } = await this.supabase
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
+      let query = this.supabase
         .from(this.tableName as any)
         .select('*')
+
+      // Apply filters if provided
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          query = query.eq(key, value)
+        })
+      }
+
+      const { data: result, error } = await query
 
       if (error) {
         console.error(`Error fetching all ${this.tableName}:`, error)
@@ -96,10 +145,20 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Get records with custom query
-  async getByQuery(query: (query: any) => any): Promise<any[] | null> {
+  /**
+   * Get records with custom query builder
+   */
+  async getByQuery(queryBuilder: (query: any) => any): Promise<any[] | null> {
     try {
-      const { data: result, error } = await query(this.supabase.from(this.tableName as any).select('*'))
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
+      const query = this.supabase
+        .from(this.tableName as any)
+        .select('*')
+
+      const { data: result, error } = await queryBuilder(query)
 
       if (error) {
         console.error(`Error fetching ${this.tableName} with custom query:`, error)
@@ -113,9 +172,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Update a record by ID
+  /**
+   * Update a record by ID
+   */
   async updateById(id: string, data: any): Promise<any | null> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { data: result, error } = await this.supabase
         .from(this.tableName as any)
         .update(data)
@@ -135,9 +200,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Update multiple records
+  /**
+   * Update multiple records
+   */
   async updateMany(ids: string[], data: any): Promise<any[] | null> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { data: result, error } = await this.supabase
         .from(this.tableName as any)
         .update(data)
@@ -156,9 +227,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Delete a record by ID
+  /**
+   * Delete a record by ID
+   */
   async deleteById(id: string): Promise<boolean> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { error } = await this.supabase
         .from(this.tableName as any)
         .delete()
@@ -176,9 +253,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Delete multiple records
+  /**
+   * Delete multiple records
+   */
   async deleteMany(ids: string[]): Promise<boolean> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { error } = await this.supabase
         .from(this.tableName as any)
         .delete()
@@ -196,9 +279,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Upsert a record (insert or update)
+  /**
+   * Upsert a record (insert or update)
+   */
   async upsert(data: any, conflictColumns: string[] = ['id']): Promise<any | null> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { data: result, error } = await this.supabase
         .from(this.tableName as any)
         .upsert(data, { 
@@ -219,9 +308,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Count records
+  /**
+   * Count records
+   */
   async count(): Promise<number> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { count, error } = await this.supabase
         .from(this.tableName as any)
         .select('*', { count: 'exact', head: true })
@@ -238,9 +333,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Check if record exists
+  /**
+   * Check if record exists
+   */
   async exists(id: string): Promise<boolean> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { data, error } = await this.supabase
         .from(this.tableName as any)
         .select('id')
@@ -258,9 +359,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Check if record exists by email
+  /**
+   * Check if record exists by email
+   */
   async existsByEmail(email: string): Promise<boolean> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { data, error } = await this.supabase
         .from(this.tableName as any)
         .select('id')
@@ -278,9 +385,15 @@ export class BaseSupabaseService<T extends TableName> {
     }
   }
 
-  // Get record by email
+  /**
+   * Get record by email
+   */
   async getByEmail(email: string): Promise<any | null> {
     try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
       const { data: result, error } = await this.supabase
         .from(this.tableName as any)
         .select('*')
@@ -295,6 +408,75 @@ export class BaseSupabaseService<T extends TableName> {
       return result
     } catch (error) {
       console.error(`Error in getByEmail method for ${this.tableName}:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Get paginated results
+   */
+  async getPaginated(
+    page: number = 1, 
+    limit: number = 10, 
+    filters?: Record<string, any>
+  ): Promise<{ data: any[]; total: number; page: number; limit: number } | null> {
+    try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
+      const offset = (page - 1) * limit
+
+      let query = this.supabase
+        .from(this.tableName as any)
+        .select('*', { count: 'exact' })
+
+      // Apply filters if provided
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          query = query.eq(key, value)
+        })
+      }
+
+      const { data, count, error } = await query
+        .range(offset, offset + limit - 1)
+
+      if (error) {
+        console.error(`Error fetching paginated ${this.tableName}:`, error)
+        return null
+      }
+
+      return {
+        data: data || [],
+        total: count || 0,
+        page,
+        limit
+      }
+    } catch (error) {
+      console.error(`Error in getPaginated method for ${this.tableName}:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Execute a raw SQL query (use with caution)
+   */
+  async executeRawQuery(query: string): Promise<any[] | null> {
+    try {
+      if (!this.supabase) {
+        await this.initializeSupabase()
+      }
+
+      const { data, error } = await this.supabase.rpc('execute_sql', { query })
+
+      if (error) {
+        console.error(`Error executing raw query:`, error)
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error(`Error in executeRawQuery method:`, error)
       return null
     }
   }

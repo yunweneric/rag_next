@@ -5,6 +5,7 @@ import type { AuthUser } from '@/lib/features/auth/data/services/auth-service'
 export interface AuthResult {
   user: AuthUser | null
   error: string | null
+  accessToken: string | undefined
 }
 
 export async function validateJWTToken(request: NextRequest): Promise<AuthResult> {
@@ -13,7 +14,7 @@ export async function validateJWTToken(request: NextRequest): Promise<AuthResult
     const authHeader = request.headers.get('authorization')
     
     if (!authHeader?.startsWith('Bearer ')) {
-      return { user: null, error: 'No authorization header' }
+        return { user: null, error: 'No authorization header', accessToken: undefined }
     }
     
     const token = authHeader.replace('Bearer ', '')
@@ -22,9 +23,9 @@ export async function validateJWTToken(request: NextRequest): Promise<AuthResult
     const authService = new AuthService()
     const { user, error } = await authService.validateToken(token)
     
-    return { user, error }
+    return { user, accessToken: token, error }
   } catch (error) {
     console.error('Token validation error:', error)
-    return { user: null, error: 'Token validation failed' }
+    return { user: null, error: 'Token validation failed', accessToken: undefined }
   }
 }

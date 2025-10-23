@@ -22,11 +22,17 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.success || !response.user) {
+      console.error('Registration failed:', {
+        success: response.success,
+        user: response.user,
+        error: response.error
+      })
       return NextResponse.json(
         { error: response.error?.message || 'Registration failed' },
         { status: 400 }
       )
     }
+    console.log('response', response)
 
     return NextResponse.json({
       success: true,

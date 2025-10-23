@@ -40,29 +40,41 @@ export type Database = {
       }
       chat_messages: {
         Row: {
+          citations: Json | null
           confidence: number | null
           content: string
           conversation_id: string
           created_at: string | null
+          follow_ups: Json | null
           id: string
+          metrics: Json | null
+          response_version: number | null
           role: string
           sources: Json | null
         }
         Insert: {
+          citations?: Json | null
           confidence?: number | null
           content: string
           conversation_id: string
           created_at?: string | null
+          follow_ups?: Json | null
           id?: string
+          metrics?: Json | null
+          response_version?: number | null
           role: string
           sources?: Json | null
         }
         Update: {
+          citations?: Json | null
           confidence?: number | null
           content?: string
           conversation_id?: string
           created_at?: string | null
+          follow_ups?: Json | null
           id?: string
+          metrics?: Json | null
+          response_version?: number | null
           role?: string
           sources?: Json | null
         }

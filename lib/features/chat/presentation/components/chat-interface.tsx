@@ -7,15 +7,24 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/shared/utils/cn'
 import { LawyerRecommendations } from './lawyer-recommendations'
+import { ConfidenceIndicator } from './confidence-indicator'
+import { SourcesPanel } from './sources-panel'
+import { FollowUpSuggestions } from './follow-up-suggestions'
 import { Send, Trash } from 'lucide-react'
 import { useAuth } from '@/lib/features/auth/hooks/use-auth'
+import { migrateMessageToV2, isLegacyMessage } from '@/lib/shared/utils/migration/response-migration'
+import type { EnhancedSource, Citation, ResponseMetrics } from '@/lib/shared/types/llm-response'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
-  sources?: Array<{ content: string; page: number; section?: string; score: number }>
+  sources?: EnhancedSource[]
   confidence?: number
+  citations?: Citation[]
+  followUps?: string[]
+  metrics?: ResponseMetrics
   lawyerRecommendations?: any[] // TODO: Define a proper type for lawyer recommendations
+  responseVersion?: number // 1 = legacy, 2 = new format
 }
 
 interface ChatInterfaceProps {
@@ -173,13 +182,22 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
       })
       if (response.ok) {
         const data = await response.json()
-        const formattedMessages = data.messages.map((msg: any) => ({
-          role: msg.role,
-          content: msg.content,
-          sources: msg.sources,
-          confidence: msg.confidence,
-          lawyerRecommendations: msg.lawyer_recommendations
-        }))
+        const formattedMessages = data.messages.map((msg: any) => {
+          if (isLegacyMessage(msg)) {
+            return migrateMessageToV2(msg)
+          }
+          return {
+            role: msg.role,
+            content: msg.content,
+            sources: msg.sources,
+            confidence: msg.confidence,
+            citations: msg.citations,
+            followUps: msg.follow_ups,
+            metrics: msg.metrics,
+            lawyerRecommendations: msg.lawyer_recommendations,
+            responseVersion: msg.response_version || 2
+          }
+        })
         setMessages(formattedMessages)
       }
     } catch (error) {
@@ -212,20 +230,70 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data = await response.json()
-      const aiMessage: Message = {
+      // Handle streaming response
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let currentMessage: Message = {
         role: 'assistant',
-        content: data.answer,
-        sources: data.sources,
-        confidence: data.confidence,
-        lawyerRecommendations: data.lawyerRecommendations,
+        content: '',
+        sources: [],
+        citations: [],
+        followUps: [],
+        metrics: { confidence: 0, processingTime: 0, tokenUsage: { prompt: 0, completion: 0, total: 0 } },
+        responseVersion: 2
       }
-      
-      // Start typing animation
-      typeMessage(aiMessage, () => {
-        setConversationId(data.conversationId)
-        onConversationChange?.(data.conversationId)
-      })
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              const eventType = line.substring(7)
+              continue
+            }
+            if (line.startsWith('data: ')) {
+              const data = line.substring(6)
+              try {
+                const parsed = JSON.parse(data)
+                
+                if (parsed.token) {
+                  // Handle token streaming
+                  currentMessage.content += parsed.token
+                  setTypingMessage({ ...currentMessage })
+                } else if (parsed.sources) {
+                  // Handle metadata
+                  currentMessage.sources = parsed.sources
+                  currentMessage.confidence = parsed.confidence
+                } else if (parsed.status === 'complete') {
+                  // Handle complete response
+                  currentMessage = {
+                    role: 'assistant',
+                    content: parsed.message.textMd,
+                    sources: parsed.sources,
+                    confidence: parsed.metrics.confidence,
+                    citations: parsed.citations,
+                    followUps: parsed.followUps,
+                    metrics: parsed.metrics,
+                    responseVersion: 2
+                  }
+                  setMessages(prev => [...prev, currentMessage])
+                  setTypingMessage(null)
+                  setLoading(false)
+                }
+              } catch (e) {
+                console.error('Error parsing stream data:', e)
+              }
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Error sending message:', error)
       const errorMessage: Message = {
@@ -316,14 +384,46 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
                   : 'bg-gray-100 text-gray-800 rounded-bl-none'
               )}
             >
-              <p className="text-sm">{msg.content}</p>
-              {msg.sources && msg.sources.length > 0 && (
-                <div className="mt-2 text-xs text-gray-500">
-                  Sources: {msg.sources.map((source, sIndex) => `Page ${source.page}`).join(', ')}
+              {msg.role === 'assistant' ? (
+                <div>
+                  <MarkdownMessage 
+                    content={msg.content} 
+                    citations={msg.citations}
+                    className="text-sm"
+                  />
+                  
+                  {msg.responseVersion === 2 && (
+                    <>
+                      <ConfidenceIndicator 
+                        confidence={msg.confidence || 0} 
+                        metrics={msg.metrics}
+                      />
+                      
+                      <SourcesPanel 
+                        sources={msg.sources || []} 
+                        citations={msg.citations || []}
+                      />
+                      
+                      <FollowUpSuggestions 
+                        suggestions={msg.followUps || []}
+                        onSelect={(suggestion) => {
+                          setInput(suggestion)
+                          // Auto-send the follow-up question
+                          setTimeout(() => {
+                            const form = document.querySelector('form')
+                            if (form) form.requestSubmit()
+                          }, 100)
+                        }}
+                      />
+                    </>
+                  )}
+                  
+                  {msg.lawyerRecommendations && msg.lawyerRecommendations.length > 0 && (
+                    <LawyerRecommendations lawyers={msg.lawyerRecommendations} />
+                  )}
                 </div>
-              )}
-              {msg.lawyerRecommendations && msg.lawyerRecommendations.length > 0 && (
-                <LawyerRecommendations lawyers={msg.lawyerRecommendations} />
+              ) : (
+                <p className="text-sm">{msg.content}</p>
               )}
             </div>
             {msg.role === 'user' && (

@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "ingest": "tsx scripts/ingest-documents.ts"
+    "ingest": "tsx scripts/ingest-documents.ts",
+    "setup:db": "tsx scripts/setup-database.ts",
+    "verify": "tsx scripts/verify-setup.ts"
   },
   "dependencies": {
     "@langchain/community": "^0.3.15",

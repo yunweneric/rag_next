@@ -7,12 +7,12 @@ import { validateRequestBody, isValidationSuccess } from '@/lib/shared/utils/val
 export async function GET(request: NextRequest) {
   try {
     // Check JWT token authentication
-    const { user, error: authError } = await validateJWTToken(request)
+    const { user, accessToken, error: authError } = await validateJWTToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const conversationService = new ChatConversationService()
+    const conversationService = new ChatConversationService(accessToken)
     const conversations = await conversationService.getConversationsByUserId(user.id)
 
     return NextResponse.json({ conversations })
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Check JWT token authentication
-    const { user, error: authError } = await validateJWTToken(request)
+    const { user, accessToken, error: authError } = await validateJWTToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
     
     const { title } = validation.data
-    const conversationService = new ChatConversationService()
+    const conversationService = new ChatConversationService(accessToken)
     const conversation = await conversationService.createConversation(user.id, title)
 
     if (!conversation) {

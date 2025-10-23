@@ -8,16 +8,24 @@ export async function GET(
 ) {
   try {
     // Check JWT token authentication
-    const { user, error: authError } = await validateJWTToken(request)
+    const { user, accessToken, error: authError } = await validateJWTToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id: conversationId } = await params
-    const conversationService = new ChatConversationService()
+    const conversationService = new ChatConversationService(accessToken)
     const messages = await conversationService.getMessagesByConversationId(conversationId)
 
-    return NextResponse.json({ messages })
+    return NextResponse.json({ 
+      messages: messages.map(msg => ({
+        ...msg,
+        citations: msg.citations || [],
+        follow_ups: msg.follow_ups || [],
+        metrics: msg.metrics || {},
+        response_version: msg.response_version || 1
+      }))
+    })
   } catch (error) {
     console.error('Error fetching messages:', error)
     return NextResponse.json(

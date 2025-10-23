@@ -1,20 +1,46 @@
 # Swiss Legal Chat App Setup
 
+## Quick Setup
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Set up environment variables:**
+   Create a `.env.local` file in the root directory with the following variables:
+
+   ```bash
+   # Supabase Configuration
+   NEXT_PUBLIC_SUPABASE_URL=https://txffyrrotilvgzuzwrvc.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4ZmZ5cnJvdGlsdmd6dXp3cnZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwNTAwODIsImV4cCI6MjA3NjYyNjA4Mn0.I_aYElAZEpn410NnCGBoUdDyv2xhc9ukcRwToe1bn-c
+
+   # Pinecone Configuration (Optional - for vector search)
+   PINECONE_API_KEY=your-pinecone-api-key
+
+   # Ollama Configuration (Optional - for local LLM)
+   OLLAMA_URL=http://localhost:11434
+
+   # OpenAI Configuration (Alternative to Ollama)
+   OPENAI_API_KEY=your-openai-api-key
+   ```
+
+3. **Set up the database:**
+   ```bash
+   # Run the database setup script
+   npm run setup:db
+   ```
+   
+   Or manually execute the SQL in `setup-database.sql` in your Supabase SQL Editor.
+
+4. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+
 ## Environment Variables
 
-Create a `.env.local` file in the root directory with the following variables:
-
-```bash
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=https://txffyrrotilvgzuzwrvc.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4ZmZ5cnJvdGlsdmd6dXp3cnZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwNTAwODIsImV4cCI6MjA3NjYyNjA4Mn0.I_aYElAZEpn410NnCGBoUdDyv2xhc9ukcRwToe1bn-c
-
-# Pinecone Configuration
-PINECONE_API_KEY=your-pinecone-api-key
-
-# Ollama Configuration
-OLLAMA_URL=http://localhost:11434
-```
+The application uses the following environment variables:
 
 ## Prerequisites
 

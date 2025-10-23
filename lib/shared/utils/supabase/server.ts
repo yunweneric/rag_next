@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/lib/shared/types/database'
 
-export async function createClient() {
+export async function createClient(accessToken?: string) {
   const cookieStore = await cookies()
   
   return createServerClient<Database>(
@@ -23,6 +23,10 @@ export async function createClient() {
           }
         },
       },
+      // Propagate Authorization header so RLS policies see the authenticated user
+      global: accessToken
+        ? { headers: { Authorization: `Bearer ${accessToken}` } }
+        : undefined,
     }
   )
 }

@@ -16,7 +16,7 @@ async function ingestDocuments() {
     llmModel: process.env.OPENAI_LLM_MODEL || 'gpt-4o-mini',
     embedModel: process.env.OPENAI_EMBED_MODEL || 'text-embedding-3-small',
     pineconeApiKey: process.env.PINECONE_API_KEY || '',
-    indexName: 'swiss-legal',
+    indexName: process.env.PINECONE_INDEX || 'swiss-legal-openai-1536',
     domainKeywords: [],
     domainName: 'Swiss Legal System',
     documentPath: './public/docs/swiss_legal.pdf',
