@@ -2,40 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/shared/utils/supabase/server'
+
+// These server actions are deprecated - Firebase Auth is handled client-side
+// The login and signup forms now use Firebase Auth directly
 
 export async function login(formData: FormData) {
-  const supabase = await createClient()
-
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-  }
-
-  const { error } = await supabase.auth.signInWithPassword(data)
-
-  if (error) {
-    redirect('/error')
-  }
-
-  revalidatePath('/', 'layout')
-  redirect('/chat')
+  // This function is deprecated - use Firebase Auth client-side
+  redirect('/login')
 }
 
 export async function signup(formData: FormData) {
-  const supabase = await createClient()
-
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-  }
-
-  const { error } = await supabase.auth.signUp(data)
-
-  if (error) {
-    redirect('/error')
-  }
-
-  revalidatePath('/', 'layout')
-  redirect('/chat')
+  // This function is deprecated - use Firebase Auth client-side
+  redirect('/signup')
 }

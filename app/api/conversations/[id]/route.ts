@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateJWTToken } from '@/lib/shared/utils/auth/jwt-auth'
+import { validateFirebaseToken } from '@/lib/shared/utils/auth/firebase-auth'
 import { ChatConversationService } from '@/lib/features/chat/data/services/chat-conversation-service'
 
 export async function DELETE(
@@ -7,8 +7,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Check JWT token authentication
-    const { user, error: authError } = await validateJWTToken(request)
+    // Check Firebase token authentication
+    const { user, error: authError } = await validateFirebaseToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

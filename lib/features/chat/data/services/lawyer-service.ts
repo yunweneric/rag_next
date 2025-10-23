@@ -1,9 +1,19 @@
-import { BaseSupabaseService } from '@/lib/shared/data/services/base_supabase_service'
-import type { Database } from '@/lib/shared/types/database'
+import { BaseAdminService } from '@/lib/shared/data/services/base_admin_service'
 
-type Lawyer = Database['public']['Tables']['lawyers']['Row']
-type LawyerInsert = Database['public']['Tables']['lawyers']['Insert']
-type LawyerUpdate = Database['public']['Tables']['lawyers']['Update']
+interface Lawyer {
+  id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  website?: string;
+  specialties: string[];
+  location?: string;
+  languages: string[];
+  rating?: number;
+  experienceYears?: number;
+  createdAt?: any;
+  updatedAt?: any;
+}
 
 export interface LawyerRecommendation {
   id: string
@@ -32,9 +42,9 @@ export interface RecommendationRequest {
   userQuestion: string
 }
 
-export class LawyerService extends BaseSupabaseService<'lawyers'> {
+export class LawyerService extends BaseAdminService<Lawyer> {
   constructor() {
-    super({ tableName: 'lawyers' })
+    super('lawyers')
   }
 
   async getRecommendations(request: RecommendationRequest): Promise<LawyerRecommendation[]> {
@@ -133,10 +143,8 @@ export class LawyerService extends BaseSupabaseService<'lawyers'> {
 
   async getLawyersBySpecialty(specialty: string): Promise<Lawyer[]> {
     try {
-      const lawyers = await this.getByQuery((query) => 
-        query.ilike('specialties', `%${specialty}%`)
-      )
-      return lawyers || []
+      const result = await this.search('specialties', specialty, 'array-contains')
+      return result.success ? result.data || [] : []
     } catch (error) {
       console.error('Error fetching lawyers by specialty:', error)
       return []
@@ -145,8 +153,8 @@ export class LawyerService extends BaseSupabaseService<'lawyers'> {
 
   async getAllLawyers(): Promise<Lawyer[]> {
     try {
-      const lawyers = await this.getAll()
-      return lawyers || []
+      const result = await this.getAll()
+      return result.success ? result.data || [] : []
     } catch (error) {
       console.error('Error fetching all lawyers:', error)
       return []

@@ -1,31 +1,12 @@
-import { NextRequest } from 'next/server'
-import { AuthService } from '@/lib/features/auth/data/services/auth-service'
-import type { AuthUser } from '@/lib/features/auth/data/services/auth-service'
-
+// This file is deprecated - use firebase-auth.ts instead
+// Keeping for backward compatibility during migration
 export interface AuthResult {
-  user: AuthUser | null
+  user: { id: string; email: string } | null
   error: string | null
   accessToken: string | undefined
 }
 
-export async function validateJWTToken(request: NextRequest): Promise<AuthResult> {
-  try {
-    // Check for Authorization header (Bearer token)
-    const authHeader = request.headers.get('authorization')
-    
-    if (!authHeader?.startsWith('Bearer ')) {
-        return { user: null, error: 'No authorization header', accessToken: undefined }
-    }
-    
-    const token = authHeader.replace('Bearer ', '')
-    
-    // Use AuthService to validate token and get user profile
-    const authService = new AuthService()
-    const { user, error } = await authService.validateToken(token)
-    
-    return { user, accessToken: token, error }
-  } catch (error) {
-    console.error('Token validation error:', error)
-    return { user: null, error: 'Token validation failed', accessToken: undefined }
-  }
+// This function is deprecated - use validateFirebaseToken from firebase-auth.ts
+export async function validateJWTToken(): Promise<AuthResult> {
+  throw new Error('validateJWTToken is deprecated. Use validateFirebaseToken from firebase-auth.ts instead.')
 }

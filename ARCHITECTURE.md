@@ -16,7 +16,7 @@ lib/
 │   ├── auth/                          # Authentication feature
 │   │   ├── data/
 │   │   │   └── actions/
-│   │   │       └── auth-actions.ts    # Server actions for login/signup
+│   │   │       └── (removed - using Supabase client directly)
 │   │   └── presentation/
 │   │       ├── components/
 │   │       │   └── login-form.tsx     # Login form component
@@ -121,7 +121,7 @@ Components are organized by feature:
 ### What Was Moved:
 - `lib/features/legal/` → `lib/features/chat/`
 - `components/chat/` → `lib/features/chat/presentation/components/`
-- `app/login/actions.ts` → `lib/features/auth/data/actions/auth-actions.ts`
+- `app/login/actions.ts` → (using Supabase client directly in components)
 - Login/signup logic → Auth feature
 - Chat logic → Chat feature
 

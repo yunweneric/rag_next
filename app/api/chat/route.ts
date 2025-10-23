@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateJWTToken } from '@/lib/shared/utils/auth/jwt-auth'
+import { validateFirebaseToken } from '@/lib/shared/utils/auth/firebase-auth'
 import { SwissLegalService } from '@/lib/features/chat/data/services/swiss-legal-service'
 import { LawyerService } from '@/lib/features/chat/data/services/lawyer-service'
 import { ChatConversationService } from '@/lib/features/chat/data/services/chat-conversation-service'
@@ -10,8 +10,8 @@ import type { AssistantResponseV2 } from '@/lib/shared/types/llm-response'
 
 export async function POST(request: NextRequest) {
   try {
-    // Check JWT token authentication
-    const { user, error: authError } = await validateJWTToken(request)
+    // Check Firebase token authentication
+    const { user, error: authError } = await validateFirebaseToken(request)
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
     // Get or create conversation
     let currentConversationId = conversationId
     if (!currentConversationId) {
-      const conversationService = new ChatConversationService(bearer || undefined)
+      const conversationService = new ChatConversationService()
       const conversation = await conversationService.createConversation(
         user.id,
         message.substring(0, 50) + (message.length > 50 ? '...' : '')
       )
 
-      if (!conversation) {
+      if (!conversation || !conversation.id) {
         console.error('Error creating conversation')
         return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
       }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save user message
-    const conversationService = new ChatConversationService(bearer || undefined)
+    const conversationService = new ChatConversationService()
     await conversationService.addMessage({
       conversation_id: currentConversationId,
       role: 'user',

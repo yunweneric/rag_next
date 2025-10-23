@@ -10,7 +10,8 @@ import {
   FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { useSignup } from '../../hooks/use-signup'
+import { auth } from '@/lib/shared/core/config'
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -18,25 +19,41 @@ export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
-  const { signup, loading, error, clearError } = useSignup()
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
   const [fullName, setFullName] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    clearError()
+    setError(null)
+    setLoading(true)
 
-    const success = await signup({ 
-      email, 
-      password, 
-      username, 
-      full_name: fullName 
-    })
-    if (success) {
-      router.push('/chat')
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, email, password)
+      
+      if (user) {
+        // Update the user profile with additional information
+        await updateProfile(user, {
+          displayName: fullName
+        })
+        
+        // Store the ID token for API calls
+        const token = await user.getIdToken()
+        localStorage.setItem('firebase_token', token)
+        
+        // Set cookie for middleware
+        document.cookie = `firebase_token=${token}; path=/; max-age=86400; secure; samesite=strict`
+        
+        router.push('/chat')
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred')
+    } finally {
+      setLoading(false)
     }
   }
 

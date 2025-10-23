@@ -10,8 +10,9 @@ import { LawyerRecommendations } from './lawyer-recommendations'
 import { ConfidenceIndicator } from './confidence-indicator'
 import { SourcesPanel } from './sources-panel'
 import { FollowUpSuggestions } from './follow-up-suggestions'
+import { MarkdownMessage } from './markdown-message'
 import { Send, Trash } from 'lucide-react'
-import { useAuth } from '@/lib/features/auth/hooks/use-auth'
+import { auth } from '@/lib/shared/core/config'
 import { migrateMessageToV2, isLegacyMessage } from '@/lib/shared/utils/migration/response-migration'
 import type { EnhancedSource, Citation, ResponseMetrics } from '@/lib/shared/types/llm-response'
 
@@ -45,7 +46,29 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
   const [conversationUpdatedAt, setConversationUpdatedAt] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const { token } = useAuth()
+  const [token, setToken] = useState<string | null>(null)
+
+  useEffect(() => {
+    const getToken = async () => {
+      if (auth.currentUser) {
+        const firebaseToken = await auth.currentUser.getIdToken()
+        setToken(firebaseToken)
+        
+        // Set cookie for middleware
+        document.cookie = `firebase_token=${firebaseToken}; path=/; max-age=86400; secure; samesite=strict`
+      } else {
+        // Try to get token from localStorage if user is not currently signed in
+        const storedToken = localStorage.getItem('firebase_token')
+        if (storedToken) {
+          setToken(storedToken)
+          
+          // Set cookie for middleware
+          document.cookie = `firebase_token=${storedToken}; path=/; max-age=86400; secure; samesite=strict`
+        }
+      }
+    }
+    getToken()
+  }, [])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

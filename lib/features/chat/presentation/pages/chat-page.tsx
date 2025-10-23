@@ -1,14 +1,7 @@
 import { ChatPageClient } from '../components/chat-page-client'
-import { createClient } from '@/lib/shared/utils/supabase/server'
-import { redirect } from 'next/navigation'
 
 export default async function ChatPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
-
-  return <ChatPageClient userId={user.id} userEmail={user.email || ''} />
+  // Firebase Auth is handled client-side
+  // Pass placeholder values - the client component will handle auth
+  return <ChatPageClient userId="" userEmail="" />
 }

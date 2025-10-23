@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Plus, MessageSquare, Trash2, Calendar, LogOut, User, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/shared/utils/cn'
-import { useAuth } from '@/lib/features/auth/hooks/use-auth'
+import { auth } from '@/lib/shared/core/config'
 import { useRouter } from 'next/navigation'
 
 interface Conversation {
@@ -48,8 +48,39 @@ export function ConversationSidebar({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null)
   
-  const { user, token, logout } = useAuth()
+  const [user, setUser] = useState<any>(null)
+  const [token, setToken] = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    const getAuthData = async () => {
+      if (auth.currentUser) {
+        const firebaseToken = await auth.currentUser.getIdToken()
+        setToken(firebaseToken)
+        setUser({
+          id: auth.currentUser.uid,
+          email: auth.currentUser.email
+        })
+      } else {
+        // Try to get token from localStorage if user is not currently signed in
+        const storedToken = localStorage.getItem('firebase_token')
+        if (storedToken) {
+          setToken(storedToken)
+        }
+      }
+    }
+    getAuthData()
+  }, [])
+
+  const logout = async () => {
+    await auth.signOut()
+    localStorage.removeItem('firebase_token')
+    
+    // Clear cookie for middleware
+    document.cookie = 'firebase_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    
+    router.push('/login')
+  }
   
 
   useEffect(() => {
