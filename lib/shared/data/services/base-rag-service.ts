@@ -208,11 +208,9 @@ export abstract class BaseRAGService {
         apiKey: process.env.OPENAI_API_KEY,
       } as any);
 
-      // Build conversation context from passed messages
-      const conversationContext = conversationMessages ? this.buildConversationContext(conversationMessages) : '';
 
-      // Check if the question is domain-related
-      const isDomainRelated = await this.isDomainRelatedQuestion(question, llm);
+      // Check if the question is domain-related, considering conversation context
+      const isDomainRelated = await this.isDomainRelatedQuestion(question, llm, conversationMessages);
 
       console.log('isDomainRelated', isDomainRelated);
       
@@ -237,7 +235,10 @@ export abstract class BaseRAGService {
       const retriever = vectorStore.asRetriever({ k: 5 });
       const docs = await retriever.invoke(question);
 
-      if (docs.length === 0) {
+      // Build context even if no docs (might have conversation context)
+      const context = this.buildContext(docs, conversationMessages);
+
+      if (docs.length === 0 && (!conversationMessages || conversationMessages.length === 0)) {
         const processingTime = Date.now() - startTime;
         return this.createRAGResponse(
           this.getNoInformationMessage(),
@@ -249,11 +250,9 @@ export abstract class BaseRAGService {
         );
       }
 
-      // Build context from retrieved docs
-      const context = this.buildContext(docs);
-
-      // Get domain-specific prompt
-      const prompt = this.getDomainPrompt(context, question, conversationContext);
+      // Context already built above (handles both docs and conversation)
+      // Get domain-specific prompt (no longer needs conversationContext)
+      const prompt = this.getDomainPrompt(context, question);
 
       // Add markdown formatting instruction to ensure consistent output
       const markdownPrompt = `${prompt}
@@ -312,7 +311,8 @@ Your response must be in markdown format.`;
 
   protected async isDomainRelatedQuestion(
     question: string,
-    llm: { invoke: (input: any) => Promise<any> }
+    llm: { invoke: (input: any) => Promise<any> },
+    conversationMessages?: any[]
   ): Promise<boolean> {
     const lowerQuestion = question.toLowerCase().trim();
     
@@ -344,7 +344,7 @@ Your response must be in markdown format.`;
 
     // Use LLM to determine if it's domain-related for ambiguous cases
     try {
-      const classificationPrompt = `Determine if this question is specifically asking about ${this.domainName} legal matters. Consider:
+      let classificationPrompt = `Determine if this question is specifically asking about ${this.domainName} legal matters. Consider:
 - Simple greetings (hi, hello) = NO
 - General questions not about law = NO  
 - Questions about Swiss law, legal procedures, rights, obligations = YES
@@ -353,6 +353,16 @@ Your response must be in markdown format.`;
 Answer only "YES" or "NO".
 
 Question: "${question}"`;
+
+      // Add conversation context if available
+      if (conversationMessages && conversationMessages.length > 0) {
+        const conversationContext = conversationMessages
+          .slice(-3) // Use last 3 messages for context
+          .map(msg => `${msg.role}: ${msg.content}`)
+          .join('\n');
+        
+        classificationPrompt += `\n\nConversation context:\n${conversationContext}\n\nConsider the conversation history when determining if this is a legal question.`;
+      }
 
       const response = await llm.invoke(classificationPrompt);
       const responseText = resolveContentToString(response.content);
@@ -369,33 +379,8 @@ Question: "${question}"`;
   // Abstract methods to be implemented by specific domain services
   protected abstract getNoInformationMessage(): string;
   protected abstract buildContext(docs: any[], conversationMessages?: any[]): string;
-  protected abstract getDomainPrompt(context: string, question: string, conversationContext?: string): string;
+  protected abstract getDomainPrompt(context: string, question: string): string;
 
-  // Method to build conversation context from messages
-  private buildConversationContext(messages: any[]): string {
-    try {
-      if (!Array.isArray(messages) || messages.length === 0) {
-        return '';
-      }
-
-      // Sort by createdAt and limit to 10 most recent messages
-      const sortedMessages = messages
-        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-        .slice(-10);
-
-      // Format conversation context
-      const contextParts = sortedMessages.map((msg, index) => {
-        const timestamp = new Date(msg.createdAt).toLocaleString();
-        const role = msg.role === 'user' ? 'User' : 'SwizzMitch';
-        return `[${timestamp}] ${role}: ${msg.content}`;
-      });
-
-      return `\n\nCONVERSATION HISTORY:\n${contextParts.join('\n')}\n`;
-    } catch (error) {
-      console.error('Error building conversation context:', error);
-      return '';
-    }
-  }
 
   async isReady(): Promise<boolean> {
     try {

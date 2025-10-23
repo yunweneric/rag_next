@@ -707,18 +707,44 @@ I'm **SwizzMitch**, your Swiss Legal Assistant. I can help you with Swiss legal 
 *What legal question can I help you with today?*`
   }
 
-  protected buildContext(docs: any[]): string {
-    const contextParts = docs.map((doc, index) => {
-      const source = doc.metadata?.source || 'Legal Document'
-      const page = doc.metadata?.loc?.pageNumber || 'Unknown'
-      return `[Source ${index + 1}: ${source}, Page ${page}]
+  protected buildContext(docs: any[], conversationMessages?: any[]): string {
+    let contextString = '';
+    
+    // Add conversation history if available
+    if (conversationMessages && conversationMessages.length > 0) {
+      const sortedMessages = conversationMessages
+        .sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          return dateA - dateB
+        })
+        .slice(-10);
+      
+      const conversationParts = sortedMessages.map((msg) => {
+        const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'Unknown time';
+        const role = msg.role === 'user' ? 'User' : 'SwizzMitch';
+        return `[${timestamp}] ${role}: ${msg.content}`;
+      });
+      
+      contextString += `CONVERSATION HISTORY:\n${conversationParts.join('\n')}\n\n---\n\n`;
+    }
+    
+    // Add document context if available
+    if (docs && docs.length > 0) {
+      const contextParts = docs.map((doc, index) => {
+        const source = doc.metadata?.source || 'Legal Document'
+        const page = doc.metadata?.loc?.pageNumber || 'Unknown'
+        return `[Source ${index + 1}: ${source}, Page ${page}]
 ${doc.pageContent}`
-    })
-
-    return contextParts.join('\n\n---\n\n')
+      })
+      
+      contextString += `SWISS LEGAL DOCUMENTS:\n${contextParts.join('\n\n---\n\n')}`
+    }
+    
+    return contextString
   }
 
-  protected getDomainPrompt(context: string, question: string, conversationContext?: string): string {
+  protected getDomainPrompt(context: string, question: string): string {
     return `You are a Swiss legal expert called SwizzMitch. Answer the user's question directly and comprehensively based on Swiss law.
 
 IMPORTANT INSTRUCTIONS:
@@ -752,14 +778,12 @@ CRITICAL FORMATTING REQUIREMENT:
 - Use bullet points (- item) for features or options
 - Use code blocks for legal codes or specific references
 
-CONTEXT (Swiss Legal Documents):
-${context}${conversationContext || ''}
+CONTEXT:
+${context}
 
 QUESTION: ${question}
 
-Spezifisch für Schweizer Recht: Bitte antworten Sie direkt und umfassend auf die Frage. Verwenden Sie Markdown-Formatierung und geben Sie präzise rechtliche Informationen basierend auf dem Schweizer Rechtssystem.
-
-${conversationContext ? 'Use the conversation history above to provide context-aware responses and build upon previous discussions.' : ''}
+Use the conversation history (if provided above) to provide context-aware responses and build upon previous discussions. Bitte antworten Sie direkt und umfassend auf die Frage. Verwenden Sie Markdown-Formatierung und geben Sie präzise rechtliche Informationen basierend auf dem Schweizer Rechtssystem.
 
 If you recommend lawyers, provide them in this JSON format:
 {

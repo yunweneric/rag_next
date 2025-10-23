@@ -89,6 +89,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<ChatMessa
       content: message
     })
 
+    console.log('Conversation messages:', conversationMessages.length)
+
     // Process the RAG query
     try {
       const ragResponse = await legalService.query(message, conversationMessages)
