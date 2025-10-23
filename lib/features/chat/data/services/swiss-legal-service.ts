@@ -718,7 +718,7 @@ ${doc.pageContent}`
     return contextParts.join('\n\n---\n\n')
   }
 
-  protected getDomainPrompt(context: string, question: string): string {
+  protected getDomainPrompt(context: string, question: string, conversationContext?: string): string {
     return `You are a Swiss legal expert called SwizzMitch. Answer the user's question directly and comprehensively based on Swiss law.
 
 IMPORTANT INSTRUCTIONS:
@@ -753,11 +753,13 @@ CRITICAL FORMATTING REQUIREMENT:
 - Use code blocks for legal codes or specific references
 
 CONTEXT (Swiss Legal Documents):
-${context}
+${context}${conversationContext || ''}
 
 QUESTION: ${question}
 
 Spezifisch für Schweizer Recht: Bitte antworten Sie direkt und umfassend auf die Frage. Verwenden Sie Markdown-Formatierung und geben Sie präzise rechtliche Informationen basierend auf dem Schweizer Rechtssystem.
+
+${conversationContext ? 'Use the conversation history above to provide context-aware responses and build upon previous discussions.' : ''}
 
 If you recommend lawyers, provide them in this JSON format:
 {

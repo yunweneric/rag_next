@@ -60,8 +60,29 @@ export async function POST(request: NextRequest): Promise<NextResponse<ChatMessa
     
     console.log('Using conversationId:', currentConversationId)
 
-    // Save user message
+    // Fetch conversation messages BEFORE saving the current message
+    let conversationMessages: any[] = []
     const conversationService = new ChatConversationService()
+    if (currentConversationId) {
+      try {
+        const messagesResponse = await conversationService.getMessagesByConversationId(currentConversationId)
+        if (messagesResponse && Array.isArray(messagesResponse)) {
+          // Sort by createdAt (most recent first) and limit to 10 messages
+          conversationMessages = messagesResponse
+            .sort((a, b) => {
+              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+              return dateB - dateA
+            })
+            .slice(0, 10)
+        }
+      } catch (error) {
+        console.warn('Failed to fetch conversation messages:', error)
+        // Continue without conversation context
+      }
+    }
+
+    // Save user message
     await conversationService.addMessage({
       conversation_id: currentConversationId,
       role: 'user',
@@ -70,7 +91,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ChatMessa
 
     // Process the RAG query
     try {
-      const ragResponse = await legalService.query(message)
+      const ragResponse = await legalService.query(message, conversationMessages)
       
       // Convert RAG response to AssistantResponseV2 format
       const responseV2: AssistantResponseV2 = {

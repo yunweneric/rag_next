@@ -3,7 +3,7 @@ import { PineconeStore } from "@langchain/pinecone";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
-import type { AssistantResponseV2, EnhancedSource, Citation, ResponseMetrics } from '@/lib/shared/types/llm-response';
+import type {  EnhancedSource, Citation, ResponseMetrics } from '@/lib/shared/types/llm-response';
 
 // Module-level singleton store
 let vectorStore: PineconeStore | null = null;
@@ -184,7 +184,7 @@ export abstract class BaseRAGService {
     }
   }
 
-  async query(question: string): Promise<RAGResponse> {
+  async query(question: string, conversationMessages?: any[]): Promise<RAGResponse> {
     const startTime = Date.now();
 
     try {
@@ -207,6 +207,9 @@ export abstract class BaseRAGService {
         temperature: 0.2,
         apiKey: process.env.OPENAI_API_KEY,
       } as any);
+
+      // Build conversation context from passed messages
+      const conversationContext = conversationMessages ? this.buildConversationContext(conversationMessages) : '';
 
       // Check if the question is domain-related
       const isDomainRelated = await this.isDomainRelatedQuestion(question, llm);
@@ -250,7 +253,7 @@ export abstract class BaseRAGService {
       const context = this.buildContext(docs);
 
       // Get domain-specific prompt
-      const prompt = this.getDomainPrompt(context, question);
+      const prompt = this.getDomainPrompt(context, question, conversationContext);
 
       // Add markdown formatting instruction to ensure consistent output
       const markdownPrompt = `${prompt}
@@ -365,8 +368,34 @@ Question: "${question}"`;
 
   // Abstract methods to be implemented by specific domain services
   protected abstract getNoInformationMessage(): string;
-  protected abstract buildContext(docs: any[]): string;
-  protected abstract getDomainPrompt(context: string, question: string): string;
+  protected abstract buildContext(docs: any[], conversationMessages?: any[]): string;
+  protected abstract getDomainPrompt(context: string, question: string, conversationContext?: string): string;
+
+  // Method to build conversation context from messages
+  private buildConversationContext(messages: any[]): string {
+    try {
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return '';
+      }
+
+      // Sort by createdAt and limit to 10 most recent messages
+      const sortedMessages = messages
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        .slice(-10);
+
+      // Format conversation context
+      const contextParts = sortedMessages.map((msg, index) => {
+        const timestamp = new Date(msg.createdAt).toLocaleString();
+        const role = msg.role === 'user' ? 'User' : 'SwizzMitch';
+        return `[${timestamp}] ${role}: ${msg.content}`;
+      });
+
+      return `\n\nCONVERSATION HISTORY:\n${contextParts.join('\n')}\n`;
+    } catch (error) {
+      console.error('Error building conversation context:', error);
+      return '';
+    }
+  }
 
   async isReady(): Promise<boolean> {
     try {
