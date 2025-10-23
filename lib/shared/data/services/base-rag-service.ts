@@ -8,6 +8,18 @@ import type { AssistantResponseV2, EnhancedSource, Citation, ResponseMetrics } f
 // Module-level singleton store
 let vectorStore: PineconeStore | null = null;
 
+export interface LawyerRecommendation {
+  name: string;
+  specialties: string[];
+  rating: number;
+  phone: string;
+  email: string;
+  address: string;
+  availability: string;
+  experience: string;
+  languages: string[];
+}
+
 export interface RAGResponse {
   answer: string;
   sources: EnhancedSource[];
@@ -16,6 +28,7 @@ export interface RAGResponse {
   citations: Citation[];
   followUps: string[];
   metrics: ResponseMetrics;
+  lawyerRecommendations?: LawyerRecommendation[];
 }
 
 // Normalize LangChain/OpenAI message content to a string
@@ -203,18 +216,7 @@ export abstract class BaseRAGService {
       if (!isDomainRelated) {
         // Handle general conversation naturally
         const generalAnswer = await llm.invoke(
-          `You are a helpful Swiss legal assistant. Respond naturally to this: ${question}. If it's a greeting, introduce yourself as a Swiss legal assistant and explain how you can help with legal questions.
-
-IMPORTANT: Always format your response in markdown. Use proper markdown syntax for:
-- Headers (# ## ###)
-- Bold text (**bold**)
-- Italic text (*italic*)
-- Lists (- item or 1. item)
-- Code blocks (\`\`\`language)
-- Links ([text](url))
-- Blockquotes (> quote)
-
-Format your response in markdown:`
+          `You are SwizzMitch, a Swiss legal assistant. Respond naturally to: ${question}. If it's a greeting, introduce yourself briefly and ask how you can help with legal questions. Format your response in markdown.`
         );
 
         const processingTime = Date.now() - startTime;
@@ -276,6 +278,9 @@ Your response must be in markdown format.`;
       // Generate follow-up questions
       const followUps = await this.generateFollowUps(question, finalAnswer, llm);
       
+      // Generate lawyer recommendations
+      const lawyerRecommendations = await this.generateLawyerRecommendations(question, finalAnswer, llm);
+      
       const confidence = Math.min(0.95, 0.6 + docs.length * 0.1);
       const processingTime = Date.now() - startTime;
 
@@ -285,7 +290,8 @@ Your response must be in markdown format.`;
         confidence,
         processingTime,
         citations,
-        followUps
+        followUps,
+        lawyerRecommendations
       );
     } catch (error) {
       console.error("Error querying:", error);
@@ -399,6 +405,68 @@ Return only the questions, one per line, without numbering or bullet points.`;
     }
   }
 
+  // Helper method to generate lawyer recommendations
+  private async generateLawyerRecommendations(question: string, answer: string, llm: any): Promise<LawyerRecommendation[]> {
+    try {
+      const lawyerPrompt = `Based on this legal question and answer, determine if lawyer recommendations would be helpful. Only recommend lawyers if:
+1. The user specifically asks for lawyer recommendations
+2. The question involves complex legal procedures requiring professional assistance
+3. The answer suggests the user needs professional legal representation
+
+Question: ${question}
+Answer: ${answer}
+
+If lawyer recommendations are appropriate, provide 2-3 Swiss lawyers with the following JSON format:
+{
+  "lawyerRecommendations": [
+    {
+      "name": "Dr. [First Name] [Last Name]",
+      "specialties": ["relevant practice areas"],
+      "rating": 4.5,
+      "phone": "+41 [area code] [number]",
+      "email": "[name]@law.ch",
+      "address": "[Street], [ZIP] [City], Switzerland",
+      "availability": "Mon-Fri 9:00-17:00",
+      "experience": "10+ years",
+      "languages": ["German", "English", "French"]
+    }
+  ]
+}
+
+If no lawyer recommendations are needed, return: {"lawyerRecommendations": []}
+
+Focus on lawyers who specialize in the relevant area of Swiss law mentioned in the question.`;
+
+      const response = await llm.invoke(lawyerPrompt);
+      const responseText = resolveContentToString(response.content);
+      
+      try {
+        // Extract JSON from markdown code blocks if present
+        let jsonText = responseText.trim();
+        
+        // Remove markdown code block markers
+        if (jsonText.startsWith('```json')) {
+          jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (jsonText.startsWith('```')) {
+          jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+        
+        // Clean up any extra whitespace
+        jsonText = jsonText.trim();
+        
+        const parsed = JSON.parse(jsonText);
+        return parsed.lawyerRecommendations || [];
+      } catch (parseError) {
+        console.error('Error parsing lawyer recommendations JSON:', parseError);
+        console.error('Response text:', responseText);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error generating lawyer recommendations:', error);
+      return [];
+    }
+  }
+
   // Helper method to create enhanced sources with stable IDs and URLs
   private createEnhancedSources(docs: any[]): EnhancedSource[] {
     return docs.map((doc, index) => {
@@ -459,7 +527,8 @@ Return only the questions, one per line, without numbering or bullet points.`;
     confidence: number = 0.5,
     processingTime: number,
     citations: Citation[] = [],
-    followUps: string[] = []
+    followUps: string[] = [],
+    lawyerRecommendations?: LawyerRecommendation[]
   ): RAGResponse {
     return {
       answer,
@@ -468,6 +537,7 @@ Return only the questions, one per line, without numbering or bullet points.`;
       processingTime,
       citations,
       followUps,
+      lawyerRecommendations,
       metrics: {
         confidence,
         processingTime,
