@@ -1,35 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateFirebaseToken } from '@/lib/shared/utils/auth/firebase-auth'
 import { ChatConversationService } from '@/lib/features/chat/data/services/chat-conversation-service'
+import type { ConversationMessagesResponse } from '@/lib/features/chat/data/types/chat-types'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse<ConversationMessagesResponse>> {
   try {
-    // Check Firebase token authentication
-    const { user, error: authError } = await validateFirebaseToken(request)
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { id: conversationId } = await params
     const conversationService = new ChatConversationService()
     const messages = await conversationService.getMessagesByConversationId(conversationId)
 
-    return NextResponse.json({ 
+    // Transform to API response format
+    const response: ConversationMessagesResponse = {
       messages: messages.map(msg => ({
-        ...msg,
+        id: msg.id!,
+        role: msg.role,
+        content: msg.content,
+        sources: msg.sources || [],
         citations: msg.citations || [],
         follow_ups: msg.followUps || [],
-        metrics: msg.metrics || {},
-        response_version: msg.responseVersion || 1
+        metrics: msg.metrics || { confidence: 0, processingTime: 0 },
+        response_version: msg.responseVersion || 1,
+        created_at: msg.createdAt?.toISOString() || new Date().toISOString()
       }))
-    })
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error fetching messages:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { messages: [] },
       { status: 500 }
     )
   }

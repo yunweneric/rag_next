@@ -14,6 +14,9 @@ import { signInWithEmailAndPassword } from 'firebase/auth'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useAuth } from '@/lib/shared/hooks/use-auth'
+import { useAuthNavigation } from '@/lib/shared/hooks/use-navigation'
+import { setAuthCookie } from '@/lib/shared/utils/cookie-utils'
 
 export function LoginForm({
   className,
@@ -24,6 +27,8 @@ export function LoginForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const { refreshUser } = useAuth()
+  const { navigateToChat } = useAuthNavigation()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,7 +38,10 @@ export function LoginForm({
     try {
       // Check if Firebase is properly configured
       if (!auth) {
-        throw new Error('Firebase is not properly configured. Please check your environment variables.')
+        const errorMsg = 'Firebase is not properly configured. Please check your environment variables.'
+        setError(errorMsg)
+        toast.error(errorMsg)
+        return
       }
       
       // Additional validation for development
@@ -46,18 +54,35 @@ export function LoginForm({
       const { user } = await signInWithEmailAndPassword(auth, email, password)
       
       if (user) {
-        // Store the ID token for API calls
+        // Store the ID token and set cookie properly
         const token = await user.getIdToken()
-        localStorage.setItem('firebase_token', token)
+        setAuthCookie(token)
         
-        // Set cookie for middleware
-        document.cookie = `firebase_token=${token}; path=/; max-age=86400; secure; samesite=strict`
+        // Refresh the auth context to update the user state
+        await refreshUser()
         
-        router.push('/chat')
+        toast.success('Successfully signed in!')
+        
+        // Use the custom navigation hook
+        await navigateToChat()
       }
     } catch (err: any) {
       console.error('Login error:', err)
-      setError(err.message || 'An unexpected error occurred')
+      const errorMessage = err.message || 'An unexpected error occurred'
+      setError(errorMessage)
+      
+      // Show specific error messages
+      if (err.code === 'auth/user-not-found') {
+        toast.error('No account found with this email address')
+      } else if (err.code === 'auth/wrong-password') {
+        toast.error('Incorrect password')
+      } else if (err.code === 'auth/invalid-email') {
+        toast.error('Invalid email address')
+      } else if (err.code === 'auth/too-many-requests') {
+        toast.error('Too many failed attempts. Please try again later')
+      } else {
+        toast.error(errorMessage)
+      }
     } finally {
       setLoading(false)
     }

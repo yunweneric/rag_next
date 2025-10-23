@@ -14,6 +14,10 @@ import { auth } from '@/lib/shared/core/config'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { useAuth } from '@/lib/shared/hooks/use-auth'
+import { useAuthNavigation } from '@/lib/shared/hooks/use-navigation'
+import { setAuthCookie } from '@/lib/shared/utils/cookie-utils'
 
 export function SignupForm({
   className,
@@ -26,6 +30,8 @@ export function SignupForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const { refreshUser } = useAuth()
+  const { navigateToChat } = useAuthNavigation()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,17 +47,32 @@ export function SignupForm({
           displayName: fullName
         })
         
-        // Store the ID token for API calls
+        // Store the ID token and set cookie properly
         const token = await user.getIdToken()
-        localStorage.setItem('firebase_token', token)
+        setAuthCookie(token)
         
-        // Set cookie for middleware
-        document.cookie = `firebase_token=${token}; path=/; max-age=86400; secure; samesite=strict`
+        // Refresh the auth context to update the user state
+        await refreshUser()
         
-        router.push('/chat')
+        toast.success('Account created successfully!')
+        
+        // Use the custom navigation hook
+        await navigateToChat()
       }
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred')
+      const errorMessage = err.message || 'An unexpected error occurred'
+      setError(errorMessage)
+      
+      // Show specific error messages
+      if (err.code === 'auth/email-already-in-use') {
+        toast.error('An account with this email already exists')
+      } else if (err.code === 'auth/invalid-email') {
+        toast.error('Invalid email address')
+      } else if (err.code === 'auth/weak-password') {
+        toast.error('Password is too weak. Please choose a stronger password')
+      } else {
+        toast.error(errorMessage)
+      }
     } finally {
       setLoading(false)
     }

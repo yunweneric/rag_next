@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateFirebaseToken } from '@/lib/shared/utils/auth/firebase-auth'
 import { ChatConversationService } from '@/lib/features/chat/data/services/chat-conversation-service'
 
 export async function DELETE(
@@ -7,12 +6,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Check Firebase token authentication
-    const { user, error: authError } = await validateFirebaseToken(request)
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { id: conversationId } = await params
     const conversationService = new ChatConversationService()
     const success = await conversationService.deleteConversation(conversationId)

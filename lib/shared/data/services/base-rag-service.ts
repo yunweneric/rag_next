@@ -217,19 +217,15 @@ IMPORTANT: Always format your response in markdown. Use proper markdown syntax f
 Format your response in markdown:`
         );
 
-        return {
-          answer: resolveContentToString(generalAnswer.content),
-          sources: [],
-          confidence: 0.5,
-          processingTime: Date.now() - startTime,
-          citations: [],
-          followUps: [],
-          metrics: {
-            confidence: 0.5,
-            processingTime: Date.now() - startTime,
-            tokenUsage: { prompt: 0, completion: 0, total: 0 }
-          }
-        };
+        const processingTime = Date.now() - startTime;
+        return this.createRAGResponse(
+          resolveContentToString(generalAnswer.content),
+          [],
+          0.5,
+          processingTime,
+          [],
+          []
+        );
       }
 
       // For domain-related questions, use RAG
@@ -237,19 +233,15 @@ Format your response in markdown:`
       const docs = await retriever.invoke(question);
 
       if (docs.length === 0) {
-        return {
-          answer: this.getNoInformationMessage(),
-          sources: [],
-          confidence: 0,
-          processingTime: Date.now() - startTime,
-          citations: [],
-          followUps: [],
-          metrics: {
-            confidence: 0,
-            processingTime: Date.now() - startTime,
-            tokenUsage: { prompt: 0, completion: 0, total: 0 }
-          }
-        };
+        const processingTime = Date.now() - startTime;
+        return this.createRAGResponse(
+          this.getNoInformationMessage(),
+          [],
+          0,
+          processingTime,
+          [],
+          []
+        );
       }
 
       // Build context from retrieved docs
@@ -287,38 +279,25 @@ Your response must be in markdown format.`;
       const confidence = Math.min(0.95, 0.6 + docs.length * 0.1);
       const processingTime = Date.now() - startTime;
 
-      return {
-        answer: textWithCitations,
+      return this.createRAGResponse(
+        textWithCitations,
         sources,
         confidence,
         processingTime,
         citations,
-        followUps,
-        metrics: {
-          confidence,
-          processingTime,
-          tokenUsage: {
-            prompt: 0, // Could be enhanced to track actual token usage
-            completion: 0,
-            total: 0
-          }
-        }
-      };
+        followUps
+      );
     } catch (error) {
       console.error("Error querying:", error);
-      return {
-        answer: "I'm sorry, I encountered an error processing your question. Please try again.",
-        sources: [],
-        confidence: 0,
-        processingTime: Date.now() - startTime,
-        citations: [],
-        followUps: [],
-        metrics: {
-          confidence: 0,
-          processingTime: Date.now() - startTime,
-          tokenUsage: { prompt: 0, completion: 0, total: 0 }
-        }
-      };
+      const processingTime = Date.now() - startTime;
+      return this.createRAGResponse(
+        "I'm sorry, I encountered an error processing your question. Please try again.",
+        [],
+        0,
+        processingTime,
+        [],
+        []
+      );
     }
   }
 
@@ -471,5 +450,33 @@ Return only the questions, one per line, without numbering or bullet points.`;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return Math.abs(hash).toString(36);
+  }
+
+  // Helper method to create a consistent RAG response structure
+  protected createRAGResponse(
+    answer: string,
+    sources: EnhancedSource[] = [],
+    confidence: number = 0.5,
+    processingTime: number,
+    citations: Citation[] = [],
+    followUps: string[] = []
+  ): RAGResponse {
+    return {
+      answer,
+      sources,
+      confidence,
+      processingTime,
+      citations,
+      followUps,
+      metrics: {
+        confidence,
+        processingTime,
+        tokenUsage: {
+          prompt: 0,
+          completion: 0,
+          total: 0
+        }
+      }
+    };
   }
 }

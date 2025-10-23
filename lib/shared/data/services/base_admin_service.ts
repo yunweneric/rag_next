@@ -6,7 +6,6 @@
 
 import { admin, adminDb } from "@/lib/shared/core/admin-config";
 
-
 type DocumentData = admin.firestore.DocumentData;
 type DocumentSnapshot = admin.firestore.DocumentSnapshot;
 type QuerySnapshot = admin.firestore.QuerySnapshot;
@@ -17,8 +16,8 @@ type DocumentReference = admin.firestore.DocumentReference;
 
 export interface BaseDocument {
   id?: string;
-  createdAt?: Timestamp | Date;
-  updatedAt?: Timestamp | Date;
+  createdAt?:   Date;
+  updatedAt?:   Date;
   [key: string]: any;
 }
 
@@ -63,6 +62,10 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
    */
   async getAll(options?: QueryOptions): Promise<PaginatedResponse<T>> {
     try {
+      if (!adminDb) {
+        throw new Error('Firebase Admin database not initialized');
+      }
+      
       let query: Query = adminDb.collection(this.collectionName);
 
       // Add where constraints
@@ -133,6 +136,10 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
    */
   async getById(id: string): Promise<ServiceResponse<T>> {
     try {
+      if (!adminDb) {
+        throw new Error('Firebase Admin database not initialized');
+      }
+      
       if (!id) {
         return {
           success: false,
@@ -177,6 +184,10 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
 
   async getByField(field: string, value: any): Promise<ServiceResponse<T>> {
     try {
+      if (!adminDb) {
+        throw new Error('Firebase Admin database not initialized');
+      }
+      
       const docRef: Query = adminDb
         .collection(this.collectionName)
         .where(field, "==", value);
@@ -221,16 +232,19 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
     dataInfo: Omit<T, "createdAt" | "updatedAt">
   ): Promise<ServiceResponse<T>> {
     try {
-      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      if (!adminDb) {
+        throw new Error('Firebase Admin database not initialized');
+      }
+      
       const documentData = {
         ...dataInfo,
-        createdAt: timestamp,
-        updatedAt: timestamp,
+        createdAt: new Date(  ),
+        updatedAt: new Date(),
       };
 
       if (dataInfo.id) {
         await adminDb
-          .collection(this.collectionName)
+          .collection(this.collectionName )
           .doc(dataInfo.id)
           .set(documentData);
         const response = await this.getById(dataInfo.id);
@@ -280,6 +294,10 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
     data: Partial<Omit<T, "id" | "createdAt">>
   ): Promise<ServiceResponse<T>> {
     try {
+      if (!adminDb) {
+        throw new Error('Firebase Admin database not initialized');
+      }
+      
       if (!id) {
         return {
           success: false,
@@ -298,7 +316,7 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
         .doc(id);
       const updateData = {
         ...data,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: new Date(),
       };
 
       await docRef.update(updateData);
@@ -336,6 +354,10 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
    */
   async delete(id: string): Promise<ServiceResponse<void>> {
     try {
+      if (!adminDb) {
+        throw new Error('Firebase Admin database not initialized');
+      }
+      
       if (!id) {
         return {
           success: false,
@@ -379,6 +401,10 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
    */
   async exists(id: string): Promise<ServiceResponse<boolean>> {
     try {
+      if (!adminDb) {
+        throw new Error('Firebase Admin database not initialized');
+      }
+      
       if (!id) {
         return {
           success: false,
@@ -422,6 +448,10 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
     }[]
   ): Promise<ServiceResponse<number>> {
     try {
+      if (!adminDb) {
+        throw new Error('Firebase Admin database not initialized');
+      }
+      
       let query: Query = adminDb.collection(this.collectionName);
 
       if (whereConditions) {
@@ -471,6 +501,9 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
    * Get collection reference (useful for advanced queries)
    */
   getCollection(): CollectionReference {
+    if (!adminDb) {
+      throw new Error('Firebase Admin database not initialized');
+    }
     return adminDb.collection(this.collectionName);
   }
 
@@ -478,6 +511,9 @@ export class BaseAdminService<T extends BaseDocument = BaseDocument> {
    * Get document reference (useful for advanced operations)
    */
   getDocRef(id: string): DocumentReference {
+    if (!adminDb) {
+      throw new Error('Firebase Admin database not initialized');
+    }
     return adminDb.collection(this.collectionName).doc(id);
   }
 }

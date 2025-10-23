@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { validateFirebaseToken } from '@/lib/shared/utils/token-validation';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  
+  // Allow all API routes to pass through without authentication
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
   
   // Define public routes that don't require authentication
   const publicRoutes = ['/login', '/signup', '/verify-otp', '/error'];
@@ -17,6 +23,16 @@ export async function middleware(request: NextRequest) {
   const firebaseToken = request.cookies.get('firebase_token')?.value || 
                        request.headers.get('authorization')?.replace('Bearer ', '');
   
+  // Debug logging in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Middleware check:', {
+      pathname,
+      hasToken: !!firebaseToken,
+      tokenLength: firebaseToken?.length || 0,
+      cookies: request.cookies.getAll().map(c => c.name)
+    });
+  }
+  
   // If no token found, redirect to login
   if (!firebaseToken) {
     const loginUrl = new URL('/login', request.url);
@@ -24,29 +40,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   
-  // For API routes, let them handle their own auth validation
-  if (pathname.startsWith('/api/')) {
-    return NextResponse.next();
-  }
-  
   // For protected pages, check if user is authenticated
   try {
-    // Import Firebase Admin SDK for token verification
-    const { adminAuth } = await import('@/lib/shared/core/admin-config');
+    // Use the token validation utility
+    const isValidToken = await validateFirebaseToken(firebaseToken);
     
-    // Check if adminAuth is properly initialized
-    if (!adminAuth || typeof adminAuth.verifyIdToken !== 'function') {
-      console.warn('Firebase Admin SDK not properly initialized, allowing access for development');
+    if (isValidToken) {
+      console.log('Token validation successful, allowing access');
       return NextResponse.next();
+    } else {
+      console.log('Token validation failed, redirecting to login');
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
     }
-    
-    // Verify the Firebase token
-    const decodedToken = await adminAuth.verifyIdToken(firebaseToken);
-    
-    // Token is valid, allow access
-    return NextResponse.next();
   } catch (error) {
-    console.error('Token verification failed:', error);
+    console.error('Token validation error:', error);
     
     // Token is invalid, redirect to login
     const loginUrl = new URL('/login', request.url);

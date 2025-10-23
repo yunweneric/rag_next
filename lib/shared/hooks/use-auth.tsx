@@ -4,6 +4,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/shared/core/config'
 import { toast } from 'sonner'
+import { setAuthCookie, clearAuthCookie } from '@/lib/shared/utils/cookie-utils'
 
 interface AuthUser {
   id: string
@@ -28,15 +29,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     if (auth.currentUser) {
-      await auth.currentUser.reload()
-      const currentUser = auth.currentUser
-      setUser({
-        id: currentUser.uid,
-        email: currentUser.email,
-        displayName: currentUser.displayName,
-        photoURL: currentUser.photoURL,
-        emailVerified: currentUser.emailVerified,
-      })
+      try {
+        await auth.currentUser.reload()
+        const currentUser = auth.currentUser
+        const token = await currentUser.getIdToken()
+        
+        // Update stored token using utility
+        setAuthCookie(token)
+        
+        setUser({
+          id: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL,
+          emailVerified: currentUser.emailVerified,
+        })
+      } catch (error) {
+        console.error('Error refreshing user:', error)
+      }
     }
   }
 
@@ -44,8 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await firebaseSignOut(auth)
       setUser(null)
-      localStorage.removeItem('firebase_token')
-      document.cookie = 'firebase_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+      clearAuthCookie()
       toast.success('Successfully signed out')
     } catch (error) {
       console.error('Sign out error:', error)
@@ -57,10 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
       if (firebaseUser) {
         try {
-          // Get fresh token
+          // Get fresh token and set cookie
           const token = await firebaseUser.getIdToken()
-          localStorage.setItem('firebase_token', token)
-          document.cookie = `firebase_token=${token}; path=/; max-age=86400; secure; samesite=strict`
+          setAuthCookie(token)
           
           setUser({
             id: firebaseUser.uid,
@@ -75,8 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         setUser(null)
-        localStorage.removeItem('firebase_token')
-        document.cookie = 'firebase_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        clearAuthCookie()
       }
       setLoading(false)
     })
@@ -91,7 +98,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser,
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

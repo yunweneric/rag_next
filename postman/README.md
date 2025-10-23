@@ -50,36 +50,7 @@ The collection uses the following variables:
 
 ### 3. Get JWT Token
 
-#### Option A: Using Supabase Directly (Recommended)
-
-1. **Set up Supabase client** in your application
-2. **Authenticate** with your Supabase credentials:
-
-```javascript
-// Example JavaScript code
-const { createClient } = require('@supabase/supabase-js')
-
-const supabase = createClient(
-  'YOUR_SUPABASE_URL',
-  'YOUR_SUPABASE_ANON_KEY'
-)
-
-// Login
-const { data, error } = await supabase.auth.signInWithPassword({
-  email: 'your-email@example.com',
-  password: 'your-password'
-})
-
-// Extract JWT token
-const token = data.session.access_token
-console.log('JWT Token:', token)
-```
-
-3. **Copy the token** and set it in Postman:
-   - Go to Collection Variables
-   - Set `jwt_token` to your JWT token
-
-#### Option B: Using the API Endpoints
+#### Option A: Using the API Endpoints
 
 1. **Register** a new account (Authentication → Register)
 2. **Login** with existing credentials (Authentication → Login)
@@ -241,7 +212,7 @@ Content-Type: application/json
 
 - [JWT Authentication Guide](https://jwt.io/introduction)
 - [Postman Documentation](https://learning.postman.com/docs/)
-- [Supabase Auth Documentation](https://supabase.com/docs/guides/auth)
+- [JWT Authentication Documentation](https://jwt.io/introduction)
 
 ## 🤝 Support
 

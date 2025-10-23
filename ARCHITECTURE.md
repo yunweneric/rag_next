@@ -16,7 +16,7 @@ lib/
 │   ├── auth/                          # Authentication feature
 │   │   ├── data/
 │   │   │   └── actions/
-│   │   │       └── (removed - using Supabase client directly)
+│   │   │       └── (removed - using auth client directly)
 │   │   └── presentation/
 │   │       ├── components/
 │   │       │   └── login-form.tsx     # Login form component
@@ -37,14 +37,14 @@ lib/
 └── shared/
     ├── data/
     │   └── services/
-    │       └── base_supabase_service.ts # Base CRUD service
+    │       └── base_service.ts         # Base CRUD service
     ├── types/
-    │   └── database.ts                 # Supabase database types
+    │   └── database.ts                 # Database types
     └── utils/
-        ├── supabase/
-        │   ├── client.ts              # Client-side Supabase client
-        │   ├── server.ts              # Server-side Supabase client
-        │   └── middleware.ts          # Supabase middleware
+        ├── auth/
+        │   ├── client.ts              # Client-side auth client
+        │   ├── server.ts              # Server-side auth client
+        │   └── middleware.ts          # Auth middleware
         └── cn.ts                      # Utility functions
 
 app/
@@ -71,12 +71,12 @@ app/
 
 ## 🔧 Key Components
 
-### 1. Base Supabase Service (`lib/shared/data/services/base_supabase_service.ts`)
+### 1. Base Service (`lib/shared/data/services/base_service.ts`)
 
-A generic base class that provides CRUD operations for any Supabase table:
+A generic base class that provides CRUD operations for any database table:
 
 ```typescript
-export class BaseSupabaseService<T extends TableName> {
+export class BaseService<T extends TableName> {
   // Generic CRUD methods
   async create(data: Database['public']['Tables'][T]['Insert'])
   async getById(id: string)
@@ -92,8 +92,8 @@ export class BaseSupabaseService<T extends TableName> {
 Each feature extends the base service for specific functionality:
 
 - **`SwissLegalService`**: Extends `BaseRAGService` for Swiss legal AI responses
-- **`LawyerService`**: Extends `BaseSupabaseService` for lawyer recommendations
-- **`ChatConversationService`**: Extends `BaseSupabaseService` for chat management
+- **`LawyerService`**: Extends `BaseService` for lawyer recommendations
+- **`ChatConversationService`**: Extends `BaseService` for chat management
 
 ### 3. Presentation Layer
 
@@ -114,19 +114,19 @@ Components are organized by feature:
 1. **User Interaction** → Presentation Layer (components)
 2. **API Routes** → Feature Services (business logic)
 3. **Feature Services** → Base Services (CRUD operations)
-4. **Base Services** → Supabase (database operations)
+4. **Base Services** → Database (database operations)
 
 ## 📋 Migration Summary
 
 ### What Was Moved:
 - `lib/features/legal/` → `lib/features/chat/`
 - `components/chat/` → `lib/features/chat/presentation/components/`
-- `app/login/actions.ts` → (using Supabase client directly in components)
+- `app/login/actions.ts` → (using auth client directly in components)
 - Login/signup logic → Auth feature
 - Chat logic → Chat feature
 
 ### What Was Created:
-- `BaseSupabaseService` - Generic CRUD operations
+- `BaseService` - Generic CRUD operations
 - Feature-based directory structure
 - Proper separation of concerns
 - Type-safe service extensions

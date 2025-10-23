@@ -1,58 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateFirebaseToken } from '@/lib/shared/utils/auth/firebase-auth'
 import { ChatConversationService } from '@/lib/features/chat/data/services/chat-conversation-service'
-import { createConversationSchema } from '@/lib/shared/validations'
-import { validateRequestBody, isValidationSuccess } from '@/lib/shared/utils/validation'
+import type { ConversationListResponse, CreateConversationRequest, CreateConversationResponse } from '@/lib/features/chat/data/types/chat-types'
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse<ConversationListResponse>> {
   try {
-    // Check Firebase token authentication
-    const { user, error: authError } = await validateFirebaseToken(request)
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const conversationService = new ChatConversationService()
+    const conversations = await conversationService.getConversationsByUserId('anonymous-user')
+
+    // Transform to API response format
+    const response: ConversationListResponse = {
+      conversations: conversations.map(conv => ({
+        id: conv.id!,
+        title: conv.title || 'Untitled Conversation',
+        created_at: conv.createdAt?.toISOString() || new Date().toISOString(),
+        updated_at: conv.updatedAt?.toISOString() || new Date().toISOString()
+      }))
     }
 
-    const conversationService = new ChatConversationService()
-    const conversations = await conversationService.getConversationsByUserId(user.id)
-
-    return NextResponse.json({ conversations })
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error fetching conversations:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { conversations: [] },
       { status: 500 }
     )
   }
 }
 
 // Add POST method for creating conversations
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse<CreateConversationResponse>> {
   try {
-    // Check Firebase token authentication
-    const { user, error: authError } = await validateFirebaseToken(request)
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const body: CreateConversationRequest = await request.json()
+    const { title } = body
+
+    if (!title) {
+      return NextResponse.json({ conversation: null as any }, { status: 400 })
     }
 
-    // Validate request body
-    const validation = await validateRequestBody(request, createConversationSchema)
-    if (!isValidationSuccess(validation)) {
-      return validation
-    }
-    
-    const { title } = validation.data
     const conversationService = new ChatConversationService()
-    const conversation = await conversationService.createConversation(user.id, title)
+    const conversation = await conversationService.createConversation('anonymous-user', title)
 
     if (!conversation) {
-      return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
+      return NextResponse.json({ conversation: null as any }, { status: 500 })
     }
 
-    return NextResponse.json({ conversation })
+    const response: CreateConversationResponse = { conversation }
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error creating conversation:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { conversation: null as any },
       { status: 500 }
     )
   }

@@ -11,8 +11,8 @@ interface Lawyer {
   languages: string[];
   rating?: number;
   experienceYears?: number;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface LawyerRecommendation {

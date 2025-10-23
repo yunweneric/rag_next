@@ -155,6 +155,7 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
   // Load messages when conversationId changes
   useEffect(() => {
     if (propConversationId !== conversationId) {
+      console.log('Conversation ID changed:', { from: conversationId, to: propConversationId })
       setConversationId(propConversationId || undefined)
       if (propConversationId) {
         loadMessages(propConversationId)
@@ -232,18 +233,20 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || loading || !token) return
+    if (!input.trim() || loading) return
 
     const userMessage: Message = { role: 'user', content: input }
     setMessages((prev) => [...prev, userMessage])
     setInput('')
     setLoading(true)
 
+    // Add console logging to track state
+    console.log('Sending message with conversationId:', conversationId)
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ message: input, conversationId }),
@@ -253,69 +256,31 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      // Handle streaming response
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let currentMessage: Message = {
-        role: 'assistant',
-        content: '',
-        sources: [],
-        citations: [],
-        followUps: [],
-        metrics: { confidence: 0, processingTime: 0, tokenUsage: { prompt: 0, completion: 0, total: 0 } },
-        responseVersion: 2
-      }
+      const data = await response.json()
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              const eventType = line.substring(7)
-              continue
-            }
-            if (line.startsWith('data: ')) {
-              const data = line.substring(6)
-              try {
-                const parsed = JSON.parse(data)
-                
-                if (parsed.token) {
-                  // Handle token streaming
-                  currentMessage.content += parsed.token
-                  setTypingMessage({ ...currentMessage })
-                } else if (parsed.sources) {
-                  // Handle metadata
-                  currentMessage.sources = parsed.sources
-                  currentMessage.confidence = parsed.confidence
-                } else if (parsed.status === 'complete') {
-                  // Handle complete response
-                  currentMessage = {
-                    role: 'assistant',
-                    content: parsed.message.textMd,
-                    sources: parsed.sources,
-                    confidence: parsed.metrics.confidence,
-                    citations: parsed.citations,
-                    followUps: parsed.followUps,
-                    metrics: parsed.metrics,
-                    responseVersion: 2
-                  }
-                  setMessages(prev => [...prev, currentMessage])
-                  setTypingMessage(null)
-                  setLoading(false)
-                }
-              } catch (e) {
-                console.error('Error parsing stream data:', e)
-              }
-            }
-          }
+      if (data.success) {
+        // ALWAYS update conversation ID from response to ensure sync
+        if (data.conversationId) {
+          setConversationId(data.conversationId)
+          onConversationChange?.(data.conversationId)
         }
+
+        // Create the assistant message from the response
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.data.message.textMd,
+          sources: data.data.sources,
+          confidence: data.data.metrics.confidence,
+          citations: data.data.citations,
+          followUps: data.data.followUps,
+          metrics: data.data.metrics,
+          responseVersion: 2
+        }
+
+        // Type the message with animation
+        typeMessage(assistantMessage)
+      } else {
+        throw new Error(data.error || 'Failed to get response')
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -337,6 +302,9 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
             <h2 className="text-lg font-semibold text-gray-900">{conversationTitle}</h2>
             <p className="text-sm text-gray-500">Quick answers about Swiss law and procedures.</p>
             <p className="text-xs text-gray-400 mt-1">{formatHeaderDate(conversationUpdatedAt ? new Date(conversationUpdatedAt) : new Date())}</p>
+            {process.env.NODE_ENV === 'development' && conversationId && (
+              <p className="text-xs text-blue-500 mt-1">Conv ID: {conversationId.substring(0, 8)}...</p>
+            )}
           </div>
           <button
             type="button"
@@ -344,12 +312,11 @@ export function ChatInterface({ userId, conversationId: propConversationId, onCo
             className="p-2 rounded-md hover:bg-gray-100 text-gray-600 disabled:opacity-50"
             disabled={!conversationId}
             onClick={async () => {
-              if (!conversationId || !token) return
+              if (!conversationId) return
               try {
                 const resp = await fetch(`/api/conversations/${conversationId}`, { 
                   method: 'DELETE',
                   headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                   }
                 })
