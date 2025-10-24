@@ -23,7 +23,7 @@ export default function LoginPage() {
         </div>
         <div className="bg-muted relative hidden lg:block">
           <img
-            src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80"
+            src="/lawyer.jpg"
             alt="Legal documents and law books"
             className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
           />
