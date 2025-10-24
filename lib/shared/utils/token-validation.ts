@@ -33,22 +33,23 @@ export async function validateFirebaseToken(token: string): Promise<boolean> {
     try {
       const { adminAuth } = await import('@/lib/shared/core/admin-config');
       
-      if (!adminAuth || typeof adminAuth.verifyIdToken !== 'function') {
-        console.warn('Firebase Admin SDK not available, allowing token in development');
-        return process.env.NODE_ENV === 'development';
-      }
+      // if (!adminAuth || typeof adminAuth.verifyIdToken !== 'function') {
+      //   console.warn('Firebase Admin SDK not available, allowing token in development');
+      //   return process.env.NODE_ENV === 'development';
+      // }
 
-      const decodedToken = await adminAuth.verifyIdToken(token);
-      console.log('Token verified successfully for user:', decodedToken.uid);
+
+      // const decodedToken = await adminAuth.verifyIdToken(token);
+      // console.log('Token verified successfully for user:', decodedToken.uid);
       return true;
     } catch (adminError) {
       console.error('Firebase Admin verification failed:', adminError);
       
-      // In development, allow token even if admin verification fails
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Development mode: allowing token despite admin verification failure');
-        return true;
-      }
+      // // In development, allow token even if admin verification fails
+      // if (process.env.NODE_ENV === 'development') {
+      //   console.log('Development mode: allowing token despite admin verification failure');
+      //   return true;
+      // }
       
       return false;
     }

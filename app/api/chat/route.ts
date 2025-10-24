@@ -90,6 +90,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ChatMessa
     })
 
     console.log('Conversation messages:', conversationMessages.length)
+    console.log('Conversation messages:', conversationMessages)
 
     // Process the RAG query
     try {
