@@ -217,7 +217,7 @@ export abstract class BaseRAGService {
       if (!isDomainRelated) {
         // Handle general conversation naturally
         const generalAnswer = await llm.invoke(
-          `You are SwizzMitch, a Swiss legal assistant. Respond naturally to: ${question}. If it's a greeting, introduce yourself briefly and ask how you can help with legal questions. Format your response in markdown.`
+          `You are Mis RächtMitch, a Swiss legal assistant. Respond naturally to: ${question}. If it's a greeting, introduce yourself briefly and ask how you can help with legal questions. Format your response in markdown.`
         );
 
         const processingTime = Date.now() - startTime;

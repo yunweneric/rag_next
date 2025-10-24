@@ -702,7 +702,7 @@ I'd be happy to help you with your legal question! To provide you with the most 
   async handleGreeting(): Promise<string> {
     return `# Hello! 👋
 
-I'm **SwizzMitch**, your Swiss Legal Assistant. I can help you with Swiss legal questions and connect you with qualified lawyers when needed.
+I'm **Mis Rächt**, your Swiss Legal Assistant. I can help you with Swiss legal questions and connect you with qualified lawyers when needed.
 
 *What legal question can I help you with today?*`
   }
@@ -722,7 +722,7 @@ I'm **SwizzMitch**, your Swiss Legal Assistant. I can help you with Swiss legal 
       
       const conversationParts = sortedMessages.map((msg) => {
         const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'Unknown time';
-        const role = msg.role === 'user' ? 'User' : 'SwizzMitch';
+        const role = msg.role === 'user' ? 'user' : 'assistant';
         return `[${timestamp}] ${role}: ${msg.content}`;
       });
       
@@ -745,7 +745,7 @@ ${doc.pageContent}`
   }
 
   protected getDomainPrompt(context: string, question: string): string {
-    return `You are a Swiss legal expert called SwizzMitch. Answer the user's question directly and comprehensively based on Swiss law.
+    return `You are a Swiss legal expert called Mis Rächt. Answer the user's question directly and comprehensively based on Swiss law.
 
 IMPORTANT INSTRUCTIONS:
 1. Answer the legal question directly without mentioning your AI role or capabilities
