@@ -11,7 +11,14 @@ export async function middleware(request: NextRequest) {
   }
   
   // Define public routes that don't require authentication
-  const publicRoutes = ['/login', '/signup', '/verify-otp', '/error'];
+  const publicRoutes = [
+    '/login',
+    '/signup',
+    '/verify-otp',
+    '/error',
+    '/privacy-policy',
+    '/delete-account',
+  ];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   
   // If it's a public route, allow access
